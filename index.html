@@ -1,0 +1,3002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedChart ER - EMR Demo</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
+    textarea { resize: vertical; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // Mock patient data
+    const mockPatient = {
+      name: "Johnson, Michael A.",
+      mrn: "MRN-2847593",
+      dob: "03/15/1968",
+      age: "56 yo M",
+      allergies: ["Penicillin (anaphylaxis)", "Sulfa (rash)"],
+      codeStatus: "Full Code",
+      arrivalTime: "14:32",
+      roomBed: "ER-12",
+      acuity: "ESI-2",
+      attendingMD: "Dr. King, Alexander",
+      insurance: "BlueCross PPO",
+      weight: "82 kg",
+      height: "5'10\"",
+    };
+
+    const mockPatientList = [
+      { room: "ER-12", name: "Johnson, Michael", chief: "Chest Pain", acuity: 2, status: "In Progress", time: "14:32", provider: "You" },
+      { room: "ER-08", name: "Williams, Sarah", chief: "Laceration", acuity: 4, status: "Ready for Dispo", time: "13:15", provider: "You" },
+      { room: "ER-15", name: "Chen, David", chief: "Abdominal Pain", acuity: 3, status: "Awaiting Results", time: "15:01", provider: "You" },
+      { room: "ER-03", name: "Martinez, Ana", chief: "Syncope", acuity: 2, status: "New", time: "15:45", provider: "You" },
+      { room: "ER-21", name: "Thompson, James", chief: "SOB", acuity: 2, status: "In Progress", time: "12:20", provider: "You" },
+      { room: "TR-1", name: "Davis, Robert", chief: "MVC", acuity: 1, status: "Critical", time: "15:52", provider: "Team" },
+    ];
+
+    const mockLabResults = [
+      { category: "CBC", tests: [
+        { name: "WBC", value: "12.4", unit: "K/uL", ref: "4.5-11.0", flag: "H" },
+        { name: "Hgb", value: "14.2", unit: "g/dL", ref: "13.5-17.5", flag: "" },
+        { name: "Hct", value: "42.1", unit: "%", ref: "38.8-50.0", flag: "" },
+        { name: "Plt", value: "245", unit: "K/uL", ref: "150-400", flag: "" },
+      ]},
+      { category: "BMP", tests: [
+        { name: "Na", value: "139", unit: "mEq/L", ref: "136-145", flag: "" },
+        { name: "K", value: "4.1", unit: "mEq/L", ref: "3.5-5.0", flag: "" },
+        { name: "Cl", value: "102", unit: "mEq/L", ref: "98-106", flag: "" },
+        { name: "CO2", value: "24", unit: "mEq/L", ref: "22-29", flag: "" },
+        { name: "BUN", value: "18", unit: "mg/dL", ref: "7-20", flag: "" },
+        { name: "Cr", value: "1.0", unit: "mg/dL", ref: "0.7-1.3", flag: "" },
+        { name: "Glucose", value: "142", unit: "mg/dL", ref: "70-100", flag: "H" },
+      ]},
+      { category: "Cardiac", tests: [
+        { name: "Troponin I", value: "<0.01", unit: "ng/mL", ref: "<0.04", flag: "" },
+        { name: "BNP", value: "89", unit: "pg/mL", ref: "<100", flag: "" },
+      ]},
+    ];
+
+    const mockImaging = [
+      { study: "CXR PA/Lat", time: "15:12", status: "Final", findings: "No acute cardiopulmonary process. Heart size normal. No infiltrates or effusions." },
+      { study: "ECG 12-Lead", time: "14:45", status: "Final", findings: "NSR at 78 bpm. Normal axis. No ST changes. No Q waves. QTc 420ms." },
+    ];
+
+    const mockMedications = [
+      { name: "Lisinopril", dose: "10mg", route: "PO", freq: "Daily", indication: "HTN" },
+      { name: "Metformin", dose: "500mg", route: "PO", freq: "BID", indication: "DM2" },
+      { name: "Atorvastatin", dose: "20mg", route: "PO", freq: "QHS", indication: "HLD" },
+      { name: "Aspirin", dose: "81mg", route: "PO", freq: "Daily", indication: "Cardiac" },
+    ];
+
+    // Mock medical records for past 15 years
+    const mockMedicalRecords = [
+      {
+        year: 2024,
+        records: [
+          { date: "09/15/2024", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Annual wellness exam. BP slightly elevated at 142/88. Discussed lifestyle modifications. Labs ordered.", documents: ["Visit Summary", "Lab Order"] },
+          { date: "06/22/2024", type: "Lab Results", provider: "LabCorp", facility: "LabCorp Diagnostics", summary: "Lipid panel: TC 210, LDL 130, HDL 45, TG 175. HbA1c 6.8%. Discussed statin adjustment.", documents: ["Lab Report"] },
+        ]
+      },
+      {
+        year: 2023,
+        records: [
+          { date: "11/03/2023", type: "Cardiology Consult", provider: "Dr. Robert Chen", facility: "Metro Heart Specialists", summary: "Evaluation for exertional dyspnea. Echo shows preserved EF 55-60%. Mild LVH. Stress test recommended.", documents: ["Consult Note", "Echo Report"] },
+          { date: "11/15/2023", type: "Stress Test", provider: "Dr. Robert Chen", facility: "Metro Heart Specialists", summary: "Exercise stress test - negative for ischemia. Achieved 10 METs. No arrhythmias.", documents: ["Stress Test Report"] },
+          { date: "08/10/2023", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Follow-up for HTN and DM2. A1c improved to 6.8% from 7.2%. Continue current regimen.", documents: ["Visit Summary"] },
+          { date: "03/18/2023", type: "Urgent Care", provider: "Dr. James Wilson", facility: "CityMed Urgent Care", summary: "Acute bronchitis. 5-day course of azithromycin prescribed. Follow-up PRN.", documents: ["Visit Summary", "Prescription"] },
+        ]
+      },
+      {
+        year: 2022,
+        records: [
+          { date: "12/05/2022", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Annual exam. Started on metformin 500mg BID for new diagnosis of T2DM. A1c 7.2%.", documents: ["Visit Summary", "Diabetes Education"] },
+          { date: "07/20/2022", type: "Lab Results", provider: "Quest Diagnostics", facility: "Quest Diagnostics", summary: "Fasting glucose 138, HbA1c 7.2%. New diagnosis of Type 2 Diabetes Mellitus.", documents: ["Lab Report"] },
+          { date: "04/12/2022", type: "Colonoscopy", provider: "Dr. Maria Garcia", facility: "Metro GI Associates", summary: "Screening colonoscopy. Two benign hyperplastic polyps removed. Repeat in 5 years.", documents: ["Procedure Note", "Pathology Report"] },
+        ]
+      },
+      {
+        year: 2021,
+        records: [
+          { date: "09/28/2021", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Annual wellness visit. BP 138/86. Started lisinopril 10mg daily for hypertension.", documents: ["Visit Summary"] },
+          { date: "05/15/2021", type: "Ophthalmology", provider: "Dr. Linda Park", facility: "Vision Care Center", summary: "Annual eye exam. Early cataracts noted bilaterally. No diabetic retinopathy. Follow-up 1 year.", documents: ["Exam Report"] },
+        ]
+      },
+      {
+        year: 2020,
+        records: [
+          { date: "10/10/2020", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Telemedicine visit for upper respiratory symptoms. COVID test negative. Supportive care.", documents: ["Visit Summary", "COVID Test Result"] },
+          { date: "03/05/2020", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Annual exam. Lipids borderline high. Started atorvastatin 20mg. Diet and exercise counseling.", documents: ["Visit Summary"] },
+        ]
+      },
+      {
+        year: 2019,
+        records: [
+          { date: "08/22/2019", type: "ER Visit", provider: "Dr. Michael Brown", facility: "Metro General Hospital ED", summary: "Presented with acute low back pain after lifting. X-ray negative for fracture. Muscle strain diagnosed. NSAIDs and PT referral.", documents: ["Discharge Summary", "X-ray Report", "PT Referral"] },
+          { date: "04/15/2019", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Annual wellness exam. All vitals WNL. Labs unremarkable. Continue aspirin 81mg for primary prevention.", documents: ["Visit Summary", "Lab Report"] },
+        ]
+      },
+      {
+        year: 2018,
+        records: [
+          { date: "11/30/2018", type: "Dermatology", provider: "Dr. Amy Foster", facility: "Skin Health Clinic", summary: "Evaluation of suspicious mole on back. Shave biopsy performed. Pathology: benign nevus.", documents: ["Procedure Note", "Pathology Report"] },
+          { date: "06/08/2018", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Routine follow-up. Discussed smoking cessation - patient interested in quitting. Provided resources.", documents: ["Visit Summary"] },
+        ]
+      },
+      {
+        year: 2017,
+        records: [
+          { date: "09/14/2017", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Annual exam. Continues to smoke 1 PPD. Counseled on cessation. Lipids slightly elevated - lifestyle modifications.", documents: ["Visit Summary"] },
+          { date: "02/20/2017", type: "Orthopedic Consult", provider: "Dr. Steven Wright", facility: "Metro Orthopedics", summary: "Right knee pain evaluation. MRI shows meniscus tear. Conservative management vs arthroscopy discussed.", documents: ["Consult Note", "MRI Report"] },
+        ]
+      },
+      {
+        year: 2016,
+        records: [
+          { date: "07/11/2016", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "Annual wellness visit. BMI 27.2. Discussed weight management. Otherwise healthy.", documents: ["Visit Summary"] },
+        ]
+      },
+      {
+        year: 2015,
+        records: [
+          { date: "10/05/2015", type: "Office Visit", provider: "Dr. Sarah Mitchell", facility: "Primary Care Associates", summary: "New patient visit. Established care. Full history obtained. Smoker, 1 PPD x 20 years. Labs ordered.", documents: ["Visit Summary", "New Patient Forms"] },
+          { date: "10/12/2015", type: "Lab Results", provider: "LabCorp", facility: "LabCorp Diagnostics", summary: "Baseline labs: CBC, CMP, lipids, TSH all within normal limits.", documents: ["Lab Report"] },
+        ]
+      },
+      {
+        year: 2014,
+        records: [
+          { date: "05/22/2014", type: "ER Visit", provider: "Dr. Patricia Lee", facility: "Community Hospital ED", summary: "MVA - rear-ended at low speed. C-spine cleared. Mild whiplash. Discharged with NSAIDs and muscle relaxants.", documents: ["Discharge Summary", "CT Report"] },
+        ]
+      },
+      {
+        year: 2013,
+        records: [
+          { date: "08/30/2013", type: "Office Visit", provider: "Dr. John Peters", facility: "Family Medicine Clinic", summary: "Annual exam at previous PCP. Generally healthy. Smoker. Advised cessation.", documents: ["Visit Summary"] },
+        ]
+      },
+      {
+        year: 2012,
+        records: [
+          { date: "03/15/2012", type: "Surgical", provider: "Dr. William Hayes", facility: "Metro General Hospital", summary: "Right knee arthroscopy for meniscus repair. Uncomplicated. PT to follow.", documents: ["Operative Report", "Anesthesia Record", "Discharge Summary"] },
+          { date: "03/01/2012", type: "Pre-op Clearance", provider: "Dr. John Peters", facility: "Family Medicine Clinic", summary: "Pre-operative evaluation for knee surgery. EKG normal. Labs WNL. Cleared for surgery.", documents: ["Clearance Letter", "EKG Report"] },
+        ]
+      },
+      {
+        year: 2011,
+        records: [
+          { date: "11/18/2011", type: "Office Visit", provider: "Dr. John Peters", facility: "Family Medicine Clinic", summary: "Follow-up for knee pain. Persistent symptoms despite conservative treatment. Orthopedic referral placed.", documents: ["Visit Summary", "Referral"] },
+          { date: "06/10/2011", type: "Office Visit", provider: "Dr. John Peters", facility: "Family Medicine Clinic", summary: "Right knee pain after jogging. X-ray negative. RICE protocol, NSAIDs PRN.", documents: ["Visit Summary", "X-ray Report"] },
+        ]
+      },
+      {
+        year: 2010,
+        records: [
+          { date: "04/25/2010", type: "Office Visit", provider: "Dr. John Peters", facility: "Family Medicine Clinic", summary: "Annual physical. Age 42. Healthy male. Smoker. No acute concerns.", documents: ["Visit Summary"] },
+        ]
+      },
+    ];
+
+    const icd10Codes = [
+      { code: "I20.9", desc: "Angina pectoris, unspecified" },
+      { code: "I20.0", desc: "Unstable angina" },
+      { code: "I21.9", desc: "Acute myocardial infarction, unspecified" },
+      { code: "R07.9", desc: "Chest pain, unspecified" },
+      { code: "R07.89", desc: "Other chest pain" },
+      { code: "I25.10", desc: "Atherosclerotic heart disease" },
+      { code: "R00.0", desc: "Tachycardia, unspecified" },
+      { code: "E11.9", desc: "Type 2 diabetes mellitus without complications" },
+      { code: "I10", desc: "Essential hypertension" },
+      { code: "E78.5", desc: "Hyperlipidemia, unspecified" },
+    ];
+
+    const emCodes = [
+      { code: "99281", desc: "ED Visit - Level 1 (Straightforward MDM)" },
+      { code: "99282", desc: "ED Visit - Level 2 (Low MDM)" },
+      { code: "99283", desc: "ED Visit - Level 3 (Moderate MDM)" },
+      { code: "99284", desc: "ED Visit - Level 4 (Moderate-High MDM)" },
+      { code: "99285", desc: "ED Visit - Level 5 (High MDM)" },
+      { code: "99291", desc: "Critical Care, first 30-74 min" },
+      { code: "99292", desc: "Critical Care, each addtl 30 min" },
+    ];
+
+    const procedureCodes = [
+      { code: "12001", desc: "Simple repair, superficial wound, ≤2.5 cm" },
+      { code: "12002", desc: "Simple repair, superficial wound, 2.6-7.5 cm" },
+      { code: "12004", desc: "Simple repair, superficial wound, 7.6-12.5 cm" },
+      { code: "12011", desc: "Simple repair, face/mucous membrane, ≤2.5 cm" },
+      { code: "12031", desc: "Intermediate repair, scalp/trunk, ≤2.5 cm" },
+      { code: "12032", desc: "Intermediate repair, scalp/trunk, 2.6-7.5 cm" },
+      { code: "20552", desc: "Trigger point injection, 1-2 muscles" },
+      { code: "20553", desc: "Trigger point injection, 3+ muscles" },
+      { code: "31500", desc: "Intubation, endotracheal" },
+      { code: "36556", desc: "Central venous catheter insertion, age 5+" },
+      { code: "36410", desc: "Venipuncture, age 3+, physician skill" },
+      { code: "62270", desc: "Lumbar puncture, diagnostic" },
+      { code: "10060", desc: "I&D, abscess, simple" },
+      { code: "10061", desc: "I&D, abscess, complicated" },
+      { code: "10120", desc: "Foreign body removal, simple" },
+      { code: "10121", desc: "Foreign body removal, complicated" },
+      { code: "16000", desc: "Initial treatment, first degree burn" },
+      { code: "16020", desc: "Dressing/debridement, burn, small" },
+      { code: "29125", desc: "Short arm splint application" },
+      { code: "29515", desc: "Short leg splint application" },
+      { code: "93010", desc: "ECG interpretation only" },
+      { code: "93005", desc: "ECG tracing only" },
+      { code: "71046", desc: "Chest X-ray, 2 views" },
+      { code: "76942", desc: "Ultrasound guidance for needle placement" },
+      { code: "49083", desc: "Paracentesis, diagnostic or therapeutic" },
+      { code: "32555", desc: "Thoracentesis, with imaging guidance" },
+    ];
+
+    const modifiers = [
+      { code: "-25", desc: "Significant, separately identifiable E/M service" },
+      { code: "-59", desc: "Distinct procedural service" },
+      { code: "-76", desc: "Repeat procedure by same physician" },
+      { code: "-77", desc: "Repeat procedure by another physician" },
+      { code: "-LT", desc: "Left side" },
+      { code: "-RT", desc: "Right side" },
+      { code: "-50", desc: "Bilateral procedure" },
+      { code: "-51", desc: "Multiple procedures" },
+      { code: "-52", desc: "Reduced services" },
+      { code: "-22", desc: "Increased procedural services" },
+      { code: "-57", desc: "Decision for surgery" },
+      { code: "-78", desc: "Unplanned return to OR, related procedure" },
+      { code: "-79", desc: "Unrelated procedure during postop period" },
+      { code: "-XE", desc: "Separate encounter" },
+      { code: "-XS", desc: "Separate structure" },
+      { code: "-XP", desc: "Separate practitioner" },
+      { code: "-XU", desc: "Unusual non-overlapping service" },
+    ];
+
+    // Styles object
+    const styles = {
+      container: {
+        fontFamily: "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        backgroundColor: '#f0f2f5',
+        minHeight: '100vh',
+        color: '#1a1a2e',
+      },
+      header: {
+        background: 'linear-gradient(135deg, #1a365d 0%, #2d3748 100%)',
+        padding: '8px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      },
+      logo: {
+        color: '#fff',
+        fontSize: '18px',
+        fontWeight: '600',
+        letterSpacing: '-0.5px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+      },
+      headerRight: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '20px',
+        color: '#e2e8f0',
+        fontSize: '13px',
+      },
+      patientBanner: {
+        background: '#fff',
+        borderBottom: '3px solid #3182ce',
+        padding: '12px 20px',
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr auto',
+        gap: '20px',
+        alignItems: 'center',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+      },
+      bannerSection: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+      },
+      patientName: {
+        fontSize: '20px',
+        fontWeight: '700',
+        color: '#1a365d',
+        letterSpacing: '-0.3px',
+      },
+      bannerLabel: {
+        fontSize: '10px',
+        fontWeight: '600',
+        color: '#718096',
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+      },
+      bannerValue: {
+        fontSize: '13px',
+        color: '#2d3748',
+        fontWeight: '500',
+      },
+      allergyBadge: {
+        background: '#fed7d7',
+        color: '#c53030',
+        padding: '4px 10px',
+        borderRadius: '4px',
+        fontSize: '12px',
+        fontWeight: '600',
+        display: 'inline-block',
+        marginRight: '6px',
+        marginTop: '2px',
+      },
+      acuityBadge: {
+        padding: '6px 14px',
+        borderRadius: '6px',
+        fontSize: '14px',
+        fontWeight: '700',
+        textAlign: 'center',
+      },
+      mainContent: {
+        display: 'flex',
+        height: 'calc(100vh - 140px)',
+      },
+      sidebar: {
+        width: '260px',
+        background: '#1a365d',
+        padding: '0',
+        overflowY: 'auto',
+        flexShrink: 0,
+      },
+      sidebarHeader: {
+        padding: '16px',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        color: '#fff',
+        fontSize: '12px',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      },
+      patientCard: {
+        padding: '12px 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+      },
+      patientCardActive: {
+        background: 'rgba(255,255,255,0.1)',
+      },
+      patientCardRoom: {
+        fontSize: '11px',
+        fontWeight: '700',
+        color: '#90cdf4',
+        marginBottom: '2px',
+      },
+      patientCardName: {
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#fff',
+        marginBottom: '3px',
+      },
+      patientCardChief: {
+        fontSize: '12px',
+        color: '#a0aec0',
+      },
+      statusBadge: {
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: '10px',
+        fontSize: '10px',
+        fontWeight: '600',
+        marginTop: '6px',
+      },
+      chartArea: {
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      },
+      tabBar: {
+        display: 'flex',
+        background: '#fff',
+        borderBottom: '1px solid #e2e8f0',
+        padding: '0 20px',
+        gap: '0',
+        flexWrap: 'wrap',
+      },
+      tab: {
+        padding: '14px 16px',
+        fontSize: '13px',
+        fontWeight: '500',
+        color: '#718096',
+        cursor: 'pointer',
+        borderBottom: '3px solid transparent',
+        transition: 'all 0.15s ease',
+        whiteSpace: 'nowrap',
+      },
+      tabActive: {
+        color: '#2b6cb0',
+        borderBottomColor: '#3182ce',
+        fontWeight: '600',
+      },
+      chartContent: {
+        flex: 1,
+        overflow: 'auto',
+        padding: '20px',
+      },
+      card: {
+        background: '#fff',
+        borderRadius: '8px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        marginBottom: '16px',
+        overflow: 'hidden',
+      },
+      cardHeader: {
+        padding: '14px 18px',
+        borderBottom: '1px solid #e2e8f0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: '#f8fafc',
+      },
+      cardTitle: {
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#1a365d',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+      },
+      cardContent: {
+        padding: '16px 18px',
+      },
+      formGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '16px',
+      },
+      formGroup: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+      },
+      label: {
+        fontSize: '11px',
+        fontWeight: '600',
+        color: '#718096',
+        textTransform: 'uppercase',
+        letterSpacing: '0.3px',
+      },
+      input: {
+        padding: '10px 12px',
+        border: '1px solid #e2e8f0',
+        borderRadius: '6px',
+        fontSize: '14px',
+        transition: 'border-color 0.15s ease',
+        outline: 'none',
+        fontFamily: 'inherit',
+      },
+      textarea: {
+        padding: '12px',
+        border: '1px solid #e2e8f0',
+        borderRadius: '6px',
+        fontSize: '14px',
+        minHeight: '150px',
+        resize: 'vertical',
+        fontFamily: 'inherit',
+        lineHeight: '1.6',
+      },
+      textareaLarge: {
+        padding: '14px',
+        border: '1px solid #e2e8f0',
+        borderRadius: '6px',
+        fontSize: '14px',
+        minHeight: '220px',
+        resize: 'vertical',
+        fontFamily: 'inherit',
+        lineHeight: '1.6',
+      },
+      textareaSmall: {
+        padding: '10px 12px',
+        border: '1px solid #e2e8f0',
+        borderRadius: '6px',
+        fontSize: '13px',
+        minHeight: '80px',
+        resize: 'vertical',
+        fontFamily: 'inherit',
+        lineHeight: '1.5',
+      },
+      checkboxGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+        gap: '8px',
+      },
+      checkboxItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        fontSize: '13px',
+        color: '#4a5568',
+        cursor: 'pointer',
+      },
+      checkbox: {
+        width: '16px',
+        height: '16px',
+        accentColor: '#3182ce',
+      },
+      vitalsGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(6, 1fr)',
+        gap: '12px',
+      },
+      vitalBox: {
+        background: '#f7fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: '8px',
+        padding: '12px',
+        textAlign: 'center',
+      },
+      vitalLabel: {
+        fontSize: '10px',
+        fontWeight: '600',
+        color: '#718096',
+        textTransform: 'uppercase',
+        marginBottom: '4px',
+      },
+      vitalValue: {
+        fontSize: '20px',
+        fontWeight: '700',
+        color: '#1a365d',
+      },
+      vitalUnit: {
+        fontSize: '11px',
+        color: '#a0aec0',
+        marginLeft: '2px',
+      },
+      labTable: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: '13px',
+      },
+      labHeader: {
+        background: '#f7fafc',
+        padding: '10px 12px',
+        textAlign: 'left',
+        fontWeight: '600',
+        color: '#4a5568',
+        borderBottom: '2px solid #e2e8f0',
+      },
+      labCell: {
+        padding: '10px 12px',
+        borderBottom: '1px solid #e2e8f0',
+      },
+      labFlag: {
+        color: '#c53030',
+        fontWeight: '700',
+        marginLeft: '6px',
+      },
+      orderSection: {
+        marginBottom: '20px',
+      },
+      orderSectionTitle: {
+        fontSize: '12px',
+        fontWeight: '600',
+        color: '#1a365d',
+        padding: '10px 14px',
+        background: '#edf2f7',
+        borderRadius: '6px 6px 0 0',
+        borderBottom: '1px solid #e2e8f0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      },
+      orderRow: {
+        display: 'grid',
+        gridTemplateColumns: '30px 1fr 120px 100px 100px 80px 40px',
+        alignItems: 'center',
+        padding: '10px 14px',
+        borderBottom: '1px solid #e2e8f0',
+        gap: '10px',
+        fontSize: '13px',
+        background: '#fff',
+      },
+      orderRowHeader: {
+        display: 'grid',
+        gridTemplateColumns: '30px 1fr 120px 100px 100px 80px 40px',
+        alignItems: 'center',
+        padding: '8px 14px',
+        gap: '10px',
+        fontSize: '11px',
+        fontWeight: '600',
+        color: '#718096',
+        textTransform: 'uppercase',
+        background: '#f7fafc',
+        borderBottom: '1px solid #e2e8f0',
+      },
+      orderCheckbox: {
+        width: '18px',
+        height: '18px',
+        accentColor: '#38a169',
+      },
+      orderStatus: {
+        fontSize: '11px',
+        fontWeight: '500',
+        padding: '4px 10px',
+        borderRadius: '12px',
+        textAlign: 'center',
+      },
+      button: {
+        padding: '10px 20px',
+        borderRadius: '6px',
+        fontSize: '13px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+        border: 'none',
+        fontFamily: 'inherit',
+      },
+      buttonPrimary: {
+        background: '#3182ce',
+        color: '#fff',
+      },
+      buttonSecondary: {
+        background: '#edf2f7',
+        color: '#4a5568',
+      },
+      buttonSuccess: {
+        background: '#38a169',
+        color: '#fff',
+      },
+      buttonWarning: {
+        background: '#dd6b20',
+        color: '#fff',
+      },
+      codeList: {
+        maxHeight: '250px',
+        overflowY: 'auto',
+        border: '1px solid #e2e8f0',
+        borderRadius: '6px',
+      },
+      codeItem: {
+        padding: '10px 14px',
+        borderBottom: '1px solid #e2e8f0',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        cursor: 'pointer',
+        transition: 'background 0.1s ease',
+      },
+      codeItemCode: {
+        fontFamily: "'IBM Plex Mono', monospace",
+        fontSize: '13px',
+        fontWeight: '600',
+        color: '#2b6cb0',
+        minWidth: '70px',
+      },
+      codeItemDesc: {
+        fontSize: '13px',
+        color: '#4a5568',
+        flex: 1,
+      },
+      selectedCodes: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px',
+        marginTop: '12px',
+      },
+      selectedCodeBadge: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        background: '#ebf8ff',
+        border: '1px solid #90cdf4',
+        padding: '6px 10px',
+        borderRadius: '6px',
+        fontSize: '12px',
+        color: '#2b6cb0',
+        fontWeight: '500',
+      },
+      mdmSection: {
+        background: '#fffbeb',
+        border: '1px solid #f6e05e',
+        borderRadius: '8px',
+        padding: '16px',
+        marginBottom: '16px',
+      },
+      mdmTitle: {
+        fontSize: '14px',
+        fontWeight: '600',
+        color: '#744210',
+        marginBottom: '12px',
+      },
+      mdmGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '16px',
+      },
+      mdmBox: {
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '6px',
+        padding: '12px',
+      },
+      mdmBoxTitle: {
+        fontSize: '11px',
+        fontWeight: '600',
+        color: '#718096',
+        textTransform: 'uppercase',
+        marginBottom: '8px',
+      },
+      dispoSection: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '20px',
+      },
+      dispoOption: {
+        border: '2px solid #e2e8f0',
+        borderRadius: '8px',
+        padding: '20px',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+      },
+      dispoOptionActive: {
+        borderColor: '#3182ce',
+        background: '#ebf8ff',
+      },
+      dispoTitle: {
+        fontSize: '16px',
+        fontWeight: '600',
+        color: '#1a365d',
+        marginBottom: '6px',
+      },
+      dispoDesc: {
+        fontSize: '13px',
+        color: '#718096',
+      },
+      attestBox: {
+        background: '#f0fff4',
+        border: '2px solid #68d391',
+        borderRadius: '8px',
+        padding: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      },
+      attestText: {
+        fontSize: '14px',
+        color: '#276749',
+        fontWeight: '500',
+      },
+      highlightCard: {
+        background: 'linear-gradient(135deg, #ebf8ff 0%, #e6fffa 100%)',
+        border: '2px solid #4fd1c5',
+        borderRadius: '10px',
+        marginBottom: '20px',
+        overflow: 'hidden',
+      },
+      highlightHeader: {
+        padding: '16px 20px',
+        background: 'linear-gradient(135deg, #319795 0%, #2b6cb0 100%)',
+        color: '#fff',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      },
+      highlightTitle: {
+        fontSize: '16px',
+        fontWeight: '700',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+      },
+      highlightContent: {
+        padding: '20px',
+      },
+      rosSystemRow: {
+        display: 'grid',
+        gridTemplateColumns: '180px 80px 1fr',
+        gap: '12px',
+        alignItems: 'start',
+        padding: '12px 0',
+        borderBottom: '1px solid #e2e8f0',
+      },
+      rosSystemLabel: {
+        fontWeight: '600',
+        color: '#1a365d',
+        fontSize: '13px',
+      },
+      rosToggle: {
+        display: 'flex',
+        gap: '4px',
+      },
+      rosToggleBtn: {
+        padding: '4px 10px',
+        fontSize: '11px',
+        fontWeight: '600',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        border: 'none',
+        transition: 'all 0.15s ease',
+      },
+      procedureCard: {
+        border: '1px solid #e2e8f0',
+        borderRadius: '8px',
+        marginBottom: '16px',
+        overflow: 'hidden',
+      },
+      procedureHeader: {
+        padding: '12px 16px',
+        background: '#f7fafc',
+        borderBottom: '1px solid #e2e8f0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      },
+    };
+
+    // Utility functions
+    const getAcuityStyle = (acuity) => {
+      const colors = {
+        1: { background: '#c53030', color: '#fff' },
+        2: { background: '#dd6b20', color: '#fff' },
+        3: { background: '#d69e2e', color: '#000' },
+        4: { background: '#38a169', color: '#fff' },
+        5: { background: '#3182ce', color: '#fff' },
+      };
+      return colors[acuity] || colors[3];
+    };
+
+    const getStatusStyle = (status) => {
+      const statusStyles = {
+        'New': { background: '#bee3f8', color: '#2b6cb0' },
+        'In Progress': { background: '#feebc8', color: '#c05621' },
+        'Awaiting Results': { background: '#e9d8fd', color: '#6b46c1' },
+        'Ready for Dispo': { background: '#c6f6d5', color: '#276749' },
+        'Critical': { background: '#fed7d7', color: '#c53030' },
+      };
+      return statusStyles[status] || statusStyles['In Progress'];
+    };
+
+    const getOrderStatusStyle = (status) => {
+      const statusStyles = {
+        'Ordered': { background: '#feebc8', color: '#c05621' },
+        'In Progress': { background: '#bee3f8', color: '#2b6cb0' },
+        'Completed': { background: '#c6f6d5', color: '#276749' },
+        'Given': { background: '#c6f6d5', color: '#276749' },
+        'Administered': { background: '#c6f6d5', color: '#276749' },
+        'Running': { background: '#bee3f8', color: '#2b6cb0' },
+        'Pending': { background: '#e9d8fd', color: '#6b46c1' },
+        'Scheduled': { background: '#feebc8', color: '#c05621' },
+        'Collected': { background: '#fefcbf', color: '#744210' },
+        'Resulted': { background: '#c6f6d5', color: '#276749' },
+        'Cancelled': { background: '#fed7d7', color: '#c53030' },
+      };
+      return statusStyles[status] || statusStyles['Ordered'];
+    };
+
+    // Main App Component
+    function EREmrMockup() {
+      const [activeTab, setActiveTab] = useState('triage');
+      const [selectedPatient, setSelectedPatient] = useState(0);
+      const [disposition, setDisposition] = useState('');
+      const [selectedICD, setSelectedICD] = useState([icd10Codes[3]]);
+      const [selectedEM, setSelectedEM] = useState(emCodes[3]);
+      const [selectedProcedureCodes, setSelectedProcedureCodes] = useState([
+        { ...procedureCodes[20], modifier: '-25' }
+      ]);
+      const [mdmLevel, setMdmLevel] = useState({ data: 'moderate', complexity: 'moderate', risk: 'moderate' });
+      
+      const [ros, setRos] = useState({
+        constitutional: { positive: false, notes: '' },
+        cardiovascular: { positive: true, notes: 'Chest pain, see HPI. Denies palpitations, orthopnea, PND, leg swelling.' },
+        respiratory: { positive: true, notes: 'Mild dyspnea with chest pain. Denies cough, wheezing, hemoptysis.' },
+        gi: { positive: false, notes: '' },
+        gu: { positive: false, notes: '' },
+        musculoskeletal: { positive: false, notes: '' },
+        neuro: { positive: false, notes: '' },
+        psych: { positive: false, notes: '' },
+        skin: { positive: false, notes: '' },
+        heme: { positive: false, notes: '' },
+        endo: { positive: false, notes: '' },
+        allImmune: { positive: false, notes: '' },
+      });
+      
+      const [peFindings, setPeFindings] = useState({
+        general: { normal: true, notes: 'Alert, oriented, appears uncomfortable, diaphoretic, in mild distress' },
+        heent: { normal: true, notes: 'NCAT, PERRL, EOMI, oropharynx clear, moist mucous membranes' },
+        neck: { normal: true, notes: 'Supple, no JVD, no lymphadenopathy, no thyromegaly, trachea midline' },
+        cardiovascular: { normal: true, notes: 'RRR, no murmurs/rubs/gallops, PMI nondisplaced, no peripheral edema, 2+ pulses bilaterally' },
+        respiratory: { normal: true, notes: 'Clear to auscultation bilaterally, no wheezes/rhonchi/rales, normal respiratory effort' },
+        abdomen: { normal: true, notes: 'Soft, nontender, nondistended, normoactive bowel sounds, no organomegaly' },
+        extremities: { normal: true, notes: 'No cyanosis, clubbing, or edema. Full ROM. No calf tenderness.' },
+        neuro: { normal: true, notes: 'A&Ox3, CN II-XII intact, strength 5/5 all extremities, sensation intact' },
+        skin: { normal: true, notes: 'Warm, diaphoretic, no rashes or lesions' },
+        psych: { normal: true, notes: 'Appropriate mood and affect, cooperative, good judgment' },
+      });
+
+      const [orders, setOrders] = useState({
+        labs: [
+          { id: 1, name: 'CBC with Differential', priority: 'STAT', status: 'Resulted', time: '14:45', checked: true },
+          { id: 2, name: 'BMP (Basic Metabolic Panel)', priority: 'STAT', status: 'Resulted', time: '14:45', checked: true },
+          { id: 3, name: 'Troponin I - Initial', priority: 'STAT', status: 'Resulted', time: '14:45', checked: true },
+          { id: 4, name: 'Troponin I - 3hr', priority: 'STAT', status: 'Ordered', time: '17:45', checked: true },
+          { id: 5, name: 'BNP', priority: 'STAT', status: 'Resulted', time: '14:45', checked: true },
+          { id: 6, name: 'PT/INR', priority: 'Routine', status: 'Resulted', time: '14:45', checked: true },
+          { id: 7, name: 'Magnesium', priority: 'Routine', status: 'Resulted', time: '14:45', checked: true },
+        ],
+        imaging: [
+          { id: 8, name: 'Chest X-Ray PA/Lat', priority: 'STAT', status: 'Completed', time: '15:12', checked: true },
+          { id: 9, name: 'ECG 12-Lead', priority: 'STAT', status: 'Completed', time: '14:42', checked: true },
+          { id: 10, name: 'ECG 12-Lead - Repeat', priority: 'Routine', status: 'Ordered', time: '--', checked: false },
+        ],
+        medications: [
+          { id: 11, name: 'Aspirin 325mg', route: 'PO', freq: 'Once', priority: 'STAT', status: 'Given', time: '14:40', checked: true },
+          { id: 12, name: 'Nitroglycerin 0.4mg', route: 'SL', freq: 'PRN chest pain', priority: 'STAT', status: 'Given x1', time: '14:48', checked: true },
+          { id: 13, name: 'Metoprolol 5mg', route: 'IV', freq: 'Once', priority: 'Routine', status: 'Ordered', time: '--', checked: false },
+          { id: 14, name: 'Morphine 2mg', route: 'IV', freq: 'PRN pain', priority: 'Routine', status: 'Ordered', time: '--', checked: true },
+          { id: 15, name: 'Ondansetron 4mg', route: 'IV', freq: 'PRN nausea', priority: 'Routine', status: 'Ordered', time: '--', checked: true },
+          { id: 16, name: 'Heparin 5000 units', route: 'SQ', freq: 'Q8H', priority: 'Routine', status: 'Ordered', time: '--', checked: false },
+        ],
+        ivFluids: [
+          { id: 17, name: 'Normal Saline 1000mL', rate: '125 mL/hr', priority: 'Routine', status: 'Running', time: '14:50', checked: true },
+        ],
+        nursing: [
+          { id: 18, name: 'Continuous cardiac monitoring', priority: 'STAT', status: 'Active', time: '14:35', checked: true },
+          { id: 19, name: 'Pulse oximetry continuous', priority: 'STAT', status: 'Active', time: '14:35', checked: true },
+          { id: 20, name: 'Vital signs Q1H', priority: 'STAT', status: 'Active', time: '14:35', checked: true },
+          { id: 21, name: 'Peripheral IV x 2 (18G or larger)', priority: 'STAT', status: 'Completed', time: '14:38', checked: true },
+          { id: 22, name: 'NPO', priority: 'Routine', status: 'Active', time: '15:00', checked: true },
+          { id: 23, name: 'Strict I/O', priority: 'Routine', status: 'Active', time: '15:00', checked: true },
+          { id: 24, name: 'Fall precautions', priority: 'Routine', status: 'Active', time: '14:35', checked: true },
+          { id: 25, name: 'Notify MD if: HR <50 or >120, SBP <90 or >180, chest pain recurrence, SpO2 <92%', priority: 'STAT', status: 'Active', time: '14:35', checked: true },
+        ],
+        consults: [
+          { id: 26, name: 'Cardiology - Chest Pain / ACS Protocol', priority: 'Routine', status: 'Pending', time: '--', checked: true },
+        ],
+        procedures: [
+          { id: 27, name: 'Peripheral IV insertion x 2', priority: 'STAT', status: 'Completed', time: '14:38', checked: true },
+        ],
+      });
+
+      const [procedureNotes, setProcedureNotes] = useState([]);
+
+      // Medical Records tab state
+      const [selectedYear, setSelectedYear] = useState('all');
+      const [selectedRecord, setSelectedRecord] = useState(null);
+      const [selectedDocType, setSelectedDocType] = useState('all');
+
+      const tabs = [
+        { id: 'triage', label: 'Triage/Intake' },
+        { id: 'records', label: 'Past Medical Records' },
+        { id: 'hpi', label: 'HPI' },
+        { id: 'exam', label: 'Physical Exam' },
+        { id: 'orders', label: 'Orders' },
+        { id: 'results', label: 'Results' },
+        { id: 'procedures', label: 'Procedures' },
+        { id: 'assessment', label: 'Assessment & Plan' },
+        { id: 'coding', label: 'Coding/Billing' },
+        { id: 'dispo', label: 'Disposition' },
+      ];
+
+      const renderTriageTab = () => (
+        <>
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Patient Demographics</span>
+              <span style={{fontSize: '11px', color: '#718096'}}>Auto-populated from registration</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={styles.formGrid}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Full Name</label>
+                  <input style={styles.input} defaultValue="Johnson, Michael Andrew" readOnly />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Date of Birth</label>
+                  <input style={styles.input} defaultValue="03/15/1968" readOnly />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Age / Sex</label>
+                  <input style={styles.input} defaultValue="56 yo Male" readOnly />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>MRN</label>
+                  <input style={styles.input} defaultValue="MRN-2847593" readOnly />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Insurance</label>
+                  <input style={styles.input} defaultValue="BlueCross PPO" readOnly />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>PCP</label>
+                  <input style={styles.input} defaultValue="Dr. Sarah Mitchell - (555) 123-4567" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Chief Complaint</span>
+              <span style={{...styles.acuityBadge, ...getAcuityStyle(2)}}>ESI Level 2</span>
+            </div>
+            <div style={styles.cardContent}>
+              <textarea 
+                style={styles.textarea} 
+                defaultValue="Chest pain - substernal, pressure-like, radiating to left arm. Onset 2 hours ago at rest. Associated with diaphoresis and mild SOB. Denies syncope, palpitations, or nausea. Patient took 2 aspirin at home prior to calling EMS."
+              />
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Vital Signs</span>
+              <span style={{fontSize: '11px', color: '#718096'}}>Recorded at 14:38</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={styles.vitalsGrid}>
+                <div style={styles.vitalBox}>
+                  <div style={styles.vitalLabel}>BP</div>
+                  <div style={{...styles.vitalValue, color: '#c53030'}}>148/92</div>
+                  <div style={styles.vitalUnit}>mmHg</div>
+                </div>
+                <div style={styles.vitalBox}>
+                  <div style={styles.vitalLabel}>HR</div>
+                  <div style={styles.vitalValue}>88</div>
+                  <div style={styles.vitalUnit}>bpm</div>
+                </div>
+                <div style={styles.vitalBox}>
+                  <div style={styles.vitalLabel}>RR</div>
+                  <div style={styles.vitalValue}>18</div>
+                  <div style={styles.vitalUnit}>/min</div>
+                </div>
+                <div style={styles.vitalBox}>
+                  <div style={styles.vitalLabel}>Temp</div>
+                  <div style={styles.vitalValue}>98.6</div>
+                  <div style={styles.vitalUnit}>°F</div>
+                </div>
+                <div style={styles.vitalBox}>
+                  <div style={styles.vitalLabel}>SpO2</div>
+                  <div style={styles.vitalValue}>97</div>
+                  <div style={styles.vitalUnit}>% RA</div>
+                </div>
+                <div style={styles.vitalBox}>
+                  <div style={styles.vitalLabel}>Pain</div>
+                  <div style={{...styles.vitalValue, color: '#dd6b20'}}>7</div>
+                  <div style={styles.vitalUnit}>/10</div>
+                </div>
+              </div>
+              <div style={{marginTop: '16px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px'}}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Weight</label>
+                  <input style={styles.input} defaultValue="82 kg (180.4 lbs)" />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Height</label>
+                  <input style={styles.input} defaultValue="5'10&quot; (178 cm)" />
+                </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>BMI</label>
+                  <input style={styles.input} value="25.9 kg/m²" readOnly />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Review of Systems with Free Text */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Review of Systems</span>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                  All Negative
+                </button>
+                <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                  Unable to Obtain
+                </button>
+              </div>
+            </div>
+            <div style={styles.cardContent}>
+              {[
+                { key: 'constitutional', label: 'Constitutional' },
+                { key: 'cardiovascular', label: 'Cardiovascular' },
+                { key: 'respiratory', label: 'Respiratory' },
+                { key: 'gi', label: 'Gastrointestinal' },
+                { key: 'gu', label: 'Genitourinary' },
+                { key: 'musculoskeletal', label: 'Musculoskeletal' },
+                { key: 'neuro', label: 'Neurological' },
+                { key: 'psych', label: 'Psychiatric' },
+                { key: 'skin', label: 'Integumentary' },
+                { key: 'heme', label: 'Hematologic/Lymphatic' },
+                { key: 'endo', label: 'Endocrine' },
+                { key: 'allImmune', label: 'Allergic/Immunologic' },
+              ].map(system => (
+                <div key={system.key} style={styles.rosSystemRow}>
+                  <div style={styles.rosSystemLabel}>{system.label}</div>
+                  <div style={styles.rosToggle}>
+                    <button 
+                      style={{
+                        ...styles.rosToggleBtn,
+                        background: !ros[system.key].positive ? '#c6f6d5' : '#e2e8f0',
+                        color: !ros[system.key].positive ? '#276749' : '#718096',
+                      }}
+                      onClick={() => setRos({...ros, [system.key]: {...ros[system.key], positive: false}})}
+                    >
+                      NEG
+                    </button>
+                    <button 
+                      style={{
+                        ...styles.rosToggleBtn,
+                        background: ros[system.key].positive ? '#fed7d7' : '#e2e8f0',
+                        color: ros[system.key].positive ? '#c53030' : '#718096',
+                      }}
+                      onClick={() => setRos({...ros, [system.key]: {...ros[system.key], positive: true}})}
+                    >
+                      POS
+                    </button>
+                  </div>
+                  <textarea 
+                    style={{...styles.textareaSmall, minHeight: '40px'}}
+                    placeholder={ros[system.key].positive ? "Describe positive findings..." : "Negative (or add details if needed)..."}
+                    value={ros[system.key].notes}
+                    onChange={(e) => setRos({...ros, [system.key]: {...ros[system.key], notes: e.target.value}})}
+                  />
+                </div>
+              ))}
+              <div style={{marginTop: '16px'}}>
+                <label style={styles.label}>Additional ROS Notes</label>
+                <textarea 
+                  style={{...styles.textarea, marginTop: '6px'}}
+                  placeholder="Additional review of systems details, pertinent negatives, or context..."
+                  defaultValue="All other systems reviewed and negative unless otherwise noted above. Patient is a reliable historian."
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px'}}>
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardTitle}>Allergies</span>
+              </div>
+              <div style={styles.cardContent}>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                  <div style={{...styles.allergyBadge, marginRight: 0}}>Penicillin - Anaphylaxis</div>
+                  <div style={{...styles.allergyBadge, marginRight: 0, background: '#feebc8', color: '#c05621'}}>Sulfa - Rash</div>
+                </div>
+                <input style={{...styles.input, marginTop: '12px', width: '100%'}} placeholder="+ Add allergy..." />
+              </div>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardTitle}>Family History</span>
+              </div>
+              <div style={styles.cardContent}>
+                <textarea 
+                  style={{...styles.textarea}}
+                  defaultValue="Father: MI at age 58, deceased at 72 from CAD complications&#10;Mother: HTN, Type 2 DM, alive at 78&#10;Brother: CAD status post stent placement at age 52&#10;No family history of sudden cardiac death, cardiomyopathy, or arrhythmias"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Current Medications (Home Medications)</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                + Add Medication
+              </button>
+            </div>
+            <div style={styles.cardContent}>
+              <table style={styles.labTable}>
+                <thead>
+                  <tr>
+                    <th style={styles.labHeader}>Medication</th>
+                    <th style={styles.labHeader}>Dose</th>
+                    <th style={styles.labHeader}>Route</th>
+                    <th style={styles.labHeader}>Frequency</th>
+                    <th style={styles.labHeader}>Indication</th>
+                    <th style={styles.labHeader}>Compliance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mockMedications.map((med, idx) => (
+                    <tr key={idx}>
+                      <td style={styles.labCell}>{med.name}</td>
+                      <td style={styles.labCell}>{med.dose}</td>
+                      <td style={styles.labCell}>{med.route}</td>
+                      <td style={styles.labCell}>{med.freq}</td>
+                      <td style={styles.labCell}>{med.indication}</td>
+                      <td style={styles.labCell}>
+                        <span style={{color: '#276749', fontWeight: '500'}}>✓ Taking</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <textarea 
+                style={{...styles.textareaSmall, marginTop: '12px'}}
+                placeholder="Medication reconciliation notes..."
+                defaultValue="Patient confirms taking all medications as prescribed. Last doses taken this morning. No OTC medications or supplements. No recent medication changes."
+              />
+            </div>
+          </div>
+
+          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px'}}>
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardTitle}>Past Medical History</span>
+              </div>
+              <div style={styles.cardContent}>
+                <textarea 
+                  style={{...styles.textarea}}
+                  defaultValue="1. Hypertension - diagnosed 2015, well controlled on lisinopril&#10;2. Type 2 Diabetes Mellitus - diagnosed 2018, last A1c 6.8% (3 months ago)&#10;3. Hyperlipidemia - diagnosed 2019, on atorvastatin&#10;&#10;No history of:&#10;- Coronary artery disease or prior MI&#10;- Heart failure&#10;- Arrhythmias&#10;- Stroke or TIA&#10;- Peripheral vascular disease"
+                />
+              </div>
+            </div>
+
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardTitle}>Past Surgical History</span>
+              </div>
+              <div style={styles.cardContent}>
+                <textarea 
+                  style={{...styles.textarea}}
+                  defaultValue="1. Appendectomy - 1995, uncomplicated&#10;2. Right knee arthroscopy - 2010, meniscus repair&#10;&#10;No history of:&#10;- Cardiac procedures or surgeries&#10;- Vascular procedures&#10;&#10;Anesthesia history: No complications with prior general anesthesia"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Social History</span>
+            </div>
+            <div style={styles.cardContent}>
+              <textarea 
+                style={{...styles.textarea}}
+                defaultValue="Tobacco: Former smoker, quit 2015, 15 pack-year history&#10;Alcohol: Social drinker, 2-3 drinks per week, denies binge drinking&#10;Illicit drugs: Denies current or past use&#10;Caffeine: 2 cups of coffee daily&#10;&#10;Occupation: Accountant, primarily sedentary desk work&#10;Exercise: Walks 20-30 minutes 3x/week&#10;Living situation: Lives with wife in single-family home&#10;Diet: Reports generally healthy diet, some difficulty with sodium restriction&#10;Stress: Reports increased work stress over past month (tax season)"
+              />
+            </div>
+          </div>
+        </>
+      );
+
+      const renderHPITab = () => (
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <span style={styles.cardTitle}>History of Present Illness</span>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                Insert Template
+              </button>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                Voice Dictation 🎤
+              </button>
+            </div>
+          </div>
+          <div style={styles.cardContent}>
+            <textarea 
+              style={styles.textareaLarge}
+              defaultValue={`56 year old male with past medical history significant for hypertension, type 2 diabetes mellitus, and hyperlipidemia presents to the emergency department via EMS with chief complaint of chest pain.
+
+The patient reports sudden onset of substernal chest pain that began approximately 2 hours prior to arrival. He was sitting at his desk at work when symptoms began without any precipitating activity, exertion, or emotional stress. The pain is described as a pressure-like, squeezing sensation, rated 7/10 in severity at its worst. The pain radiates to his left arm and jaw. He denies any radiation to his back.
+
+The pain has been continuous since onset with no clear alleviating or aggravating factors. It is not reproducible with palpation, not pleuritic, and not positional. The patient denies any relationship to food intake or breathing.
+
+Associated symptoms include diaphoresis and mild shortness of breath. He specifically denies nausea, vomiting, lightheadedness, dizziness, syncope, palpitations, or pre-syncope.
+
+Prior to calling EMS, the patient took 2 aspirin 325mg tablets at home with minimal relief. EMS administered an additional aspirin 325mg and sublingual nitroglycerin x2 en route, with improvement of pain from 7/10 to 5/10.
+
+The patient denies any prior similar episodes. He has never had a cardiac catheterization or stress test. He has not had any recent illness, prolonged immobilization, or long-distance travel. He denies any recent leg swelling, calf pain, or symptoms suggestive of DVT.
+
+Cardiac risk factors include hypertension (10 years), diabetes mellitus (7 years), hyperlipidemia (6 years), former tobacco use (15 pack-years, quit 10 years ago), family history of premature CAD (father with MI at age 58, brother with stent at age 52), and male sex. He denies any history of known coronary artery disease, prior MI, or peripheral vascular disease.`}
+            />
+            
+            <div style={{marginTop: '16px', padding: '12px 16px', background: '#c6f6d5', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '10px'}}>
+              <span style={{fontSize: '18px'}}>✓</span>
+              <div>
+                <div style={{fontSize: '13px', color: '#276749', fontWeight: '600'}}>
+                  HPI Quality: Extended (8+ elements documented)
+                </div>
+                <div style={{fontSize: '12px', color: '#276749', marginTop: '2px'}}>
+                  Elements captured: Location, Quality, Severity, Duration, Timing, Context, Modifying Factors, Associated Signs/Symptoms
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      const renderExamTab = () => (
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <span style={styles.cardTitle}>Physical Examination</span>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                Normal Template
+              </button>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                Cardiac Template
+              </button>
+            </div>
+          </div>
+          <div style={styles.cardContent}>
+            {[
+              { key: 'general', title: 'General Appearance' },
+              { key: 'heent', title: 'HEENT' },
+              { key: 'neck', title: 'Neck' },
+              { key: 'cardiovascular', title: 'Cardiovascular' },
+              { key: 'respiratory', title: 'Respiratory' },
+              { key: 'abdomen', title: 'Abdomen' },
+              { key: 'extremities', title: 'Extremities' },
+              { key: 'neuro', title: 'Neurological' },
+              { key: 'skin', title: 'Skin' },
+              { key: 'psych', title: 'Psychiatric' },
+            ].map(system => (
+              <div key={system.key} style={{marginBottom: '16px', padding: '14px', border: '1px solid #e2e8f0', borderRadius: '8px'}}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px'}}>
+                  <span style={{fontWeight: '600', color: '#1a365d', fontSize: '14px', minWidth: '150px'}}>{system.title}</span>
+                  <div style={styles.rosToggle}>
+                    <button 
+                      style={{
+                        ...styles.rosToggleBtn,
+                        background: peFindings[system.key].normal ? '#c6f6d5' : '#e2e8f0',
+                        color: peFindings[system.key].normal ? '#276749' : '#718096',
+                        padding: '5px 12px',
+                      }}
+                      onClick={() => setPeFindings({...peFindings, [system.key]: {...peFindings[system.key], normal: true}})}
+                    >
+                      Normal
+                    </button>
+                    <button 
+                      style={{
+                        ...styles.rosToggleBtn,
+                        background: !peFindings[system.key].normal ? '#fed7d7' : '#e2e8f0',
+                        color: !peFindings[system.key].normal ? '#c53030' : '#718096',
+                        padding: '5px 12px',
+                      }}
+                      onClick={() => setPeFindings({...peFindings, [system.key]: {...peFindings[system.key], normal: false}})}
+                    >
+                      Abnormal
+                    </button>
+                  </div>
+                </div>
+                <textarea 
+                  style={{...styles.textarea, minHeight: '80px'}}
+                  value={peFindings[system.key].notes}
+                  onChange={(e) => setPeFindings({...peFindings, [system.key]: {...peFindings[system.key], notes: e.target.value}})}
+                />
+              </div>
+            ))}
+
+            <div style={{marginTop: '16px', padding: '12px 16px', background: '#c6f6d5', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '10px'}}>
+              <span style={{fontSize: '18px'}}>✓</span>
+              <div>
+                <div style={{fontSize: '13px', color: '#276749', fontWeight: '600'}}>
+                  Exam Completeness: 10/10 systems documented - Comprehensive Exam
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      const renderOrdersTab = () => (
+        <>
+          {/* Quick Order Sets */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Order Sets</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                {['Chest Pain / ACS', 'Sepsis Bundle', 'Stroke Alert', 'Abdominal Pain', 'CHF Exacerbation', 'COPD/Asthma', 'Trauma', 'Syncope', 'DKA/HHS', 'Overdose/Tox'].map(set => (
+                  <button key={set} style={{...styles.button, ...styles.buttonSecondary, padding: '8px 14px'}}>
+                    {set}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Order Search */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Order Entry</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={{display: 'flex', gap: '12px', marginBottom: '16px'}}>
+                <input style={{...styles.input, flex: 1}} placeholder="Search orders (e.g., 'troponin', 'CT chest', 'morphine')..." />
+                <select style={{...styles.input, width: '150px'}}>
+                  <option>All Categories</option>
+                  <option>Laboratory</option>
+                  <option>Imaging</option>
+                  <option>Medications</option>
+                  <option>IV Fluids</option>
+                  <option>Nursing</option>
+                  <option>Consults</option>
+                  <option>Procedures</option>
+                </select>
+                <button style={{...styles.button, ...styles.buttonPrimary}}>Search</button>
+              </div>
+              <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                <span style={{fontSize: '12px', color: '#718096', marginRight: '8px'}}>Quick Add:</span>
+                {['CBC', 'BMP', 'Troponin', 'BNP', 'UA', 'CXR', 'ECG', 'NS Bolus', 'Zofran', 'Morphine'].map(item => (
+                  <button key={item} style={{...styles.button, ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px'}}>
+                    + {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Laboratory Orders */}
+          <div style={styles.card}>
+            <div style={styles.orderSectionTitle}>
+              <span>🧪 Laboratory Orders</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px'}}>+ Add Lab</button>
+            </div>
+            <div style={styles.orderRowHeader}>
+              <span></span>
+              <span>Order</span>
+              <span>Priority</span>
+              <span>Status</span>
+              <span>Collected</span>
+              <span>Result</span>
+              <span></span>
+            </div>
+            {orders.labs.map(order => (
+              <div key={order.id} style={styles.orderRow}>
+                <input type="checkbox" style={styles.orderCheckbox} checked={order.checked} readOnly />
+                <span style={{fontWeight: '500'}}>{order.name}</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: order.priority === 'STAT' ? '#c53030' : '#718096'
+                }}>{order.priority}</span>
+                <span style={{...styles.orderStatus, ...getOrderStatusStyle(order.status)}}>{order.status}</span>
+                <span style={{fontSize: '12px', color: '#718096'}}>{order.time}</span>
+                <span>
+                  {order.status === 'Resulted' && (
+                    <button style={{...styles.button, ...styles.buttonSecondary, padding: '2px 8px', fontSize: '10px'}}>View</button>
+                  )}
+                </span>
+                <button style={{background: 'none', border: 'none', cursor: 'pointer', color: '#a0aec0', fontSize: '16px'}}>⋮</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Imaging Orders */}
+          <div style={styles.card}>
+            <div style={styles.orderSectionTitle}>
+              <span>📷 Imaging Orders</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px'}}>+ Add Imaging</button>
+            </div>
+            <div style={styles.orderRowHeader}>
+              <span></span>
+              <span>Order</span>
+              <span>Priority</span>
+              <span>Status</span>
+              <span>Time</span>
+              <span>Result</span>
+              <span></span>
+            </div>
+            {orders.imaging.map(order => (
+              <div key={order.id} style={styles.orderRow}>
+                <input type="checkbox" style={styles.orderCheckbox} checked={order.checked} readOnly />
+                <span style={{fontWeight: '500'}}>{order.name}</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: order.priority === 'STAT' ? '#c53030' : '#718096'
+                }}>{order.priority}</span>
+                <span style={{...styles.orderStatus, ...getOrderStatusStyle(order.status)}}>{order.status}</span>
+                <span style={{fontSize: '12px', color: '#718096'}}>{order.time}</span>
+                <span>
+                  {order.status === 'Completed' && (
+                    <button style={{...styles.button, ...styles.buttonSecondary, padding: '2px 8px', fontSize: '10px'}}>View</button>
+                  )}
+                </span>
+                <button style={{background: 'none', border: 'none', cursor: 'pointer', color: '#a0aec0', fontSize: '16px'}}>⋮</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Medication Orders */}
+          <div style={styles.card}>
+            <div style={styles.orderSectionTitle}>
+              <span>💊 Medication Orders</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px'}}>+ Add Medication</button>
+            </div>
+            <div style={{...styles.orderRowHeader, gridTemplateColumns: '30px 1fr 80px 100px 100px 100px 80px 40px'}}>
+              <span></span>
+              <span>Medication</span>
+              <span>Route</span>
+              <span>Frequency</span>
+              <span>Priority</span>
+              <span>Status</span>
+              <span>Time</span>
+              <span></span>
+            </div>
+            {orders.medications.map(order => (
+              <div key={order.id} style={{...styles.orderRow, gridTemplateColumns: '30px 1fr 80px 100px 100px 100px 80px 40px'}}>
+                <input type="checkbox" style={styles.orderCheckbox} checked={order.checked} readOnly />
+                <span style={{fontWeight: '500'}}>{order.name}</span>
+                <span style={{fontSize: '12px'}}>{order.route}</span>
+                <span style={{fontSize: '12px'}}>{order.freq}</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: order.priority === 'STAT' ? '#c53030' : '#718096'
+                }}>{order.priority}</span>
+                <span style={{...styles.orderStatus, ...getOrderStatusStyle(order.status)}}>{order.status}</span>
+                <span style={{fontSize: '12px', color: '#718096'}}>{order.time}</span>
+                <button style={{background: 'none', border: 'none', cursor: 'pointer', color: '#a0aec0', fontSize: '16px'}}>⋮</button>
+              </div>
+            ))}
+          </div>
+
+          {/* IV Fluids */}
+          <div style={styles.card}>
+            <div style={styles.orderSectionTitle}>
+              <span>💧 IV Fluids</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px'}}>+ Add IV</button>
+            </div>
+            {orders.ivFluids.map(order => (
+              <div key={order.id} style={{...styles.orderRow, gridTemplateColumns: '30px 1fr 150px 100px 100px 80px 40px'}}>
+                <input type="checkbox" style={styles.orderCheckbox} checked={order.checked} readOnly />
+                <span style={{fontWeight: '500'}}>{order.name}</span>
+                <span style={{fontSize: '12px'}}>Rate: {order.rate}</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: order.priority === 'STAT' ? '#c53030' : '#718096'
+                }}>{order.priority}</span>
+                <span style={{...styles.orderStatus, ...getOrderStatusStyle(order.status)}}>{order.status}</span>
+                <span style={{fontSize: '12px', color: '#718096'}}>{order.time}</span>
+                <button style={{background: 'none', border: 'none', cursor: 'pointer', color: '#a0aec0', fontSize: '16px'}}>⋮</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Nursing Orders */}
+          <div style={styles.card}>
+            <div style={styles.orderSectionTitle}>
+              <span>👩‍⚕️ Nursing Orders</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px'}}>+ Add Order</button>
+            </div>
+            {orders.nursing.map(order => (
+              <div key={order.id} style={{...styles.orderRow, gridTemplateColumns: '30px 1fr 100px 100px 80px 40px'}}>
+                <input type="checkbox" style={styles.orderCheckbox} checked={order.checked} readOnly />
+                <span style={{fontWeight: '500'}}>{order.name}</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: order.priority === 'STAT' ? '#c53030' : '#718096'
+                }}>{order.priority}</span>
+                <span style={{...styles.orderStatus, ...getOrderStatusStyle(order.status)}}>{order.status}</span>
+                <span style={{fontSize: '12px', color: '#718096'}}>{order.time}</span>
+                <button style={{background: 'none', border: 'none', cursor: 'pointer', color: '#a0aec0', fontSize: '16px'}}>⋮</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Consults */}
+          <div style={styles.card}>
+            <div style={styles.orderSectionTitle}>
+              <span>📞 Consults</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 10px', fontSize: '11px'}}>+ Request Consult</button>
+            </div>
+            {orders.consults.map(order => (
+              <div key={order.id} style={{...styles.orderRow, gridTemplateColumns: '30px 1fr 100px 100px 80px 40px'}}>
+                <input type="checkbox" style={styles.orderCheckbox} checked={order.checked} readOnly />
+                <span style={{fontWeight: '500'}}>{order.name}</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: order.priority === 'STAT' ? '#c53030' : '#718096'
+                }}>{order.priority}</span>
+                <span style={{...styles.orderStatus, ...getOrderStatusStyle(order.status)}}>{order.status}</span>
+                <span style={{fontSize: '12px', color: '#718096'}}>{order.time}</span>
+                <button style={{background: 'none', border: 'none', cursor: 'pointer', color: '#a0aec0', fontSize: '16px'}}>⋮</button>
+              </div>
+            ))}
+          </div>
+        </>
+      );
+
+      const renderResultsTab = () => (
+        <>
+          <div style={{...styles.card, borderLeft: '4px solid #c53030'}}>
+            <div style={{...styles.cardHeader, background: '#fff5f5'}}>
+              <span style={{...styles.cardTitle, color: '#c53030'}}>
+                ⚠️ Critical/Abnormal Results
+              </span>
+              <span style={{fontSize: '11px', color: '#c53030'}}>Requires acknowledgment</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+                <div style={{padding: '12px 14px', background: '#fff5f5', borderRadius: '6px', borderLeft: '3px solid #c53030', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <div>
+                    <span style={{fontWeight: '600', color: '#c53030'}}>WBC 12.4 K/uL</span>
+                    <span style={{color: '#718096', marginLeft: '8px', fontSize: '13px'}}>↑ High (ref: 4.5-11.0)</span>
+                  </div>
+                  <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 12px', fontSize: '11px'}}>Acknowledge</button>
+                </div>
+                <div style={{padding: '12px 14px', background: '#fffaf0', borderRadius: '6px', borderLeft: '3px solid #dd6b20', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                  <div>
+                    <span style={{fontWeight: '600', color: '#c05621'}}>Glucose 142 mg/dL</span>
+                    <span style={{color: '#718096', marginLeft: '8px', fontSize: '13px'}}>↑ High (ref: 70-100)</span>
+                  </div>
+                  <button style={{...styles.button, ...styles.buttonSecondary, padding: '4px 12px', fontSize: '11px'}}>Acknowledge</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Laboratory Results</span>
+              <span style={{fontSize: '11px', color: '#718096'}}>Collected 14:45 | Resulted 15:32</span>
+            </div>
+            <div style={styles.cardContent}>
+              {mockLabResults.map((category, idx) => (
+                <div key={idx} style={{marginBottom: idx < mockLabResults.length - 1 ? '20px' : 0}}>
+                  <div style={{fontSize: '12px', fontWeight: '600', color: '#2b6cb0', marginBottom: '8px', textTransform: 'uppercase'}}>
+                    {category.category}
+                  </div>
+                  <table style={styles.labTable}>
+                    <thead>
+                      <tr>
+                        <th style={styles.labHeader}>Test</th>
+                        <th style={styles.labHeader}>Result</th>
+                        <th style={styles.labHeader}>Units</th>
+                        <th style={styles.labHeader}>Reference</th>
+                        <th style={styles.labHeader}>Prior</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {category.tests.map((test, tidx) => (
+                        <tr key={tidx} style={{background: test.flag ? '#fff5f5' : 'transparent'}}>
+                          <td style={styles.labCell}>{test.name}</td>
+                          <td style={{...styles.labCell, fontWeight: '600'}}>
+                            {test.value}
+                            {test.flag && <span style={styles.labFlag}>↑{test.flag}</span>}
+                          </td>
+                          <td style={styles.labCell}>{test.unit}</td>
+                          <td style={{...styles.labCell, color: '#718096'}}>{test.ref}</td>
+                          <td style={{...styles.labCell, color: '#a0aec0', fontSize: '12px'}}>--</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Imaging Results</span>
+            </div>
+            <div style={styles.cardContent}>
+              {mockImaging.map((study, idx) => (
+                <div key={idx} style={{marginBottom: idx < mockImaging.length - 1 ? '16px' : 0, padding: '14px', background: '#f7fafc', borderRadius: '8px'}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                    <span style={{fontWeight: '600', color: '#1a365d', fontSize: '15px'}}>{study.study}</span>
+                    <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                      <span style={{fontSize: '12px', color: '#718096'}}>{study.time}</span>
+                      <span style={{
+                        fontSize: '11px',
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        background: '#c6f6d5',
+                        color: '#276749',
+                        fontWeight: '600'
+                      }}>
+                        {study.status}
+                      </span>
+                      <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                        View Images
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{fontSize: '14px', color: '#4a5568', lineHeight: '1.6'}}>
+                    <strong>Impression:</strong> {study.findings}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>ECG - 12 Lead</span>
+              <div style={{display: 'flex', gap: '8px'}}>
+                <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>Compare Prior</button>
+                <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>View Full</button>
+              </div>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={{background: '#1a1a2e', borderRadius: '8px', padding: '20px', marginBottom: '16px'}}>
+                <svg viewBox="0 0 800 100" style={{width: '100%', height: '80px'}}>
+                  <defs>
+                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#2d3748" strokeWidth="0.5"/>
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#grid)" />
+                  <path 
+                    d="M0,50 L50,50 L55,50 L60,40 L65,50 L70,50 L75,15 L80,85 L85,45 L90,50 L150,50 L155,50 L160,40 L165,50 L170,50 L175,15 L180,85 L185,45 L190,50 L250,50 L255,50 L260,40 L265,50 L270,50 L275,15 L280,85 L285,45 L290,50 L350,50 L355,50 L360,40 L365,50 L370,50 L375,15 L380,85 L385,45 L390,50 L450,50 L455,50 L460,40 L465,50 L470,50 L475,15 L480,85 L485,45 L490,50 L550,50 L555,50 L560,40 L565,50 L570,50 L575,15 L580,85 L585,45 L590,50 L650,50 L655,50 L660,40 L665,50 L670,50 L675,15 L680,85 L685,45 L690,50 L750,50 L755,50 L760,40 L765,50 L770,50 L775,15 L780,85 L785,45 L790,50 L800,50"
+                    fill="none" 
+                    stroke="#48bb78" 
+                    strokeWidth="2"
+                  />
+                </svg>
+              </div>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', fontSize: '14px', marginBottom: '16px'}}>
+                <div><strong>Rate:</strong> 78 bpm</div>
+                <div><strong>PR Interval:</strong> 160 ms</div>
+                <div><strong>QRS Duration:</strong> 88 ms</div>
+                <div><strong>QTc:</strong> 420 ms</div>
+              </div>
+              <div style={{padding: '12px', background: '#f7fafc', borderRadius: '6px'}}>
+                <strong>Interpretation:</strong> Normal sinus rhythm at 78 bpm. Normal axis. Normal intervals. No ST segment elevations or depressions. No T-wave inversions. No Q waves. No evidence of acute ischemia or infarction. No significant change from prior ECG (if available).
+              </div>
+            </div>
+          </div>
+        </>
+      );
+
+      const renderProceduresTab = () => (
+        <>
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Procedure Documentation</span>
+              <button style={{...styles.button, ...styles.buttonPrimary, padding: '8px 16px'}}>
+                + New Procedure Note
+              </button>
+            </div>
+            <div style={styles.cardContent}>
+              <p style={{color: '#718096', marginBottom: '16px'}}>Document all procedures performed during this encounter. Each procedure requires a separate note for billing purposes.</p>
+              
+              {/* Sample Procedure Note */}
+              <div style={styles.procedureCard}>
+                <div style={styles.procedureHeader}>
+                  <span style={{fontWeight: '600', color: '#1a365d'}}>Peripheral IV Insertion x 2</span>
+                  <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                    <span style={{fontSize: '12px', color: '#718096'}}>14:38</span>
+                    <span style={{fontSize: '11px', padding: '3px 10px', borderRadius: '12px', background: '#c6f6d5', color: '#276749', fontWeight: '600'}}>Completed</span>
+                  </div>
+                </div>
+                <div style={{padding: '16px'}}>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px'}}>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Procedure</label>
+                      <input style={styles.input} defaultValue="Peripheral IV Catheter Insertion" />
+                    </div>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>CPT Code</label>
+                      <input style={styles.input} defaultValue="36000 - IV access (usually bundled)" />
+                    </div>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Indication</label>
+                      <input style={styles.input} defaultValue="IV access for medication administration and fluid resuscitation" />
+                    </div>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Site(s)</label>
+                      <input style={styles.input} defaultValue="Right antecubital (18G), Left forearm (20G)" />
+                    </div>
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Procedure Note</label>
+                    <textarea 
+                      style={{...styles.textarea}}
+                      defaultValue={`PROCEDURE: Peripheral intravenous catheter insertion x 2
+
+INDICATION: IV access required for medication administration, IV fluids, and potential emergency interventions in patient presenting with chest pain concerning for ACS.
+
+CONSENT: Verbal consent obtained. Risks, benefits, and alternatives discussed. Patient agreed to proceed.
+
+TIMEOUT: Performed. Correct patient, correct procedure, correct site confirmed.
+
+TECHNIQUE: 
+1. Right antecubital fossa identified. Site prepped with chlorhexidine. Using sterile technique, 18-gauge IV catheter inserted on first attempt with good blood return. Catheter secured with transparent dressing. Saline flush confirmed patency.
+2. Left forearm vein identified. Site prepped with chlorhexidine. Using sterile technique, 20-gauge IV catheter inserted on first attempt with good blood return. Catheter secured with transparent dressing. Saline flush confirmed patency.
+
+SPECIMENS: None
+
+COMPLICATIONS: None
+
+EBL: Minimal (<5mL)
+
+DISPOSITION: Patient tolerated procedure well. Both IV sites patent and functioning.`}
+                    />
+                  </div>
+                  <div style={{display: 'flex', gap: '8px', marginTop: '12px'}}>
+                    <label style={styles.checkboxItem}>
+                      <input type="checkbox" style={styles.checkbox} defaultChecked />
+                      Consent obtained
+                    </label>
+                    <label style={styles.checkboxItem}>
+                      <input type="checkbox" style={styles.checkbox} defaultChecked />
+                      Timeout performed
+                    </label>
+                    <label style={styles.checkboxItem}>
+                      <input type="checkbox" style={styles.checkbox} defaultChecked />
+                      Sterile technique
+                    </label>
+                    <label style={styles.checkboxItem}>
+                      <input type="checkbox" style={styles.checkbox} defaultChecked />
+                      No complications
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Empty Procedure Template */}
+              <div style={{...styles.procedureCard, border: '2px dashed #e2e8f0'}}>
+                <div style={{padding: '40px', textAlign: 'center'}}>
+                  <div style={{fontSize: '40px', marginBottom: '12px'}}>📋</div>
+                  <div style={{fontWeight: '600', color: '#4a5568', marginBottom: '8px'}}>Add New Procedure Note</div>
+                  <div style={{fontSize: '13px', color: '#718096', marginBottom: '16px'}}>Document laceration repairs, I&D, lumbar punctures, central lines, intubation, etc.</div>
+                  <button style={{...styles.button, ...styles.buttonPrimary}}>+ Create Procedure Note</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Procedure Templates */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Common Procedure Templates</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px'}}>
+                {[
+                  'Laceration Repair', 'I&D Abscess', 'Lumbar Puncture', 'Central Line',
+                  'Intubation', 'Chest Tube', 'Paracentesis', 'Thoracentesis',
+                  'Arthrocentesis', 'Fracture Reduction', 'Splint Application', 'Foreign Body Removal',
+                  'Cardioversion', 'Pacing', 'Wound Care', 'Trigger Point Injection'
+                ].map(template => (
+                  <button key={template} style={{...styles.button, ...styles.buttonSecondary, padding: '10px 12px', fontSize: '12px'}}>
+                    {template}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      );
+
+      const renderMedicalRecordsTab = () => {
+        const years = ['all', ...mockMedicalRecords.map(r => r.year.toString())];
+        const docTypes = ['all', 'Office Visit', 'ER Visit', 'Lab Results', 'Cardiology Consult', 'Stress Test', 'Urgent Care', 'Colonoscopy', 'Ophthalmology', 'Dermatology', 'Orthopedic Consult', 'Surgical', 'Pre-op Clearance'];
+
+        const filteredRecords = mockMedicalRecords
+          .filter(yearGroup => selectedYear === 'all' || yearGroup.year.toString() === selectedYear)
+          .flatMap(yearGroup => yearGroup.records.map(record => ({ ...record, year: yearGroup.year })))
+          .filter(record => selectedDocType === 'all' || record.type === selectedDocType);
+
+        const getRecordTypeColor = (type) => {
+          const colors = {
+            'Office Visit': { bg: '#e6fffa', border: '#38b2ac', text: '#234e52' },
+            'ER Visit': { bg: '#fed7d7', border: '#fc8181', text: '#c53030' },
+            'Lab Results': { bg: '#e9d8fd', border: '#9f7aea', text: '#553c9a' },
+            'Cardiology Consult': { bg: '#feebc8', border: '#ed8936', text: '#c05621' },
+            'Stress Test': { bg: '#feebc8', border: '#ed8936', text: '#c05621' },
+            'Urgent Care': { bg: '#fed7d7', border: '#fc8181', text: '#c53030' },
+            'Colonoscopy': { bg: '#c6f6d5', border: '#48bb78', text: '#276749' },
+            'Ophthalmology': { bg: '#bee3f8', border: '#4299e1', text: '#2b6cb0' },
+            'Dermatology': { bg: '#fefcbf', border: '#ecc94b', text: '#744210' },
+            'Orthopedic Consult': { bg: '#bee3f8', border: '#4299e1', text: '#2b6cb0' },
+            'Surgical': { bg: '#fed7d7', border: '#fc8181', text: '#c53030' },
+            'Pre-op Clearance': { bg: '#c6f6d5', border: '#48bb78', text: '#276749' },
+          };
+          return colors[type] || { bg: '#e2e8f0', border: '#a0aec0', text: '#4a5568' };
+        };
+
+        return (
+          <>
+            {/* Header Card */}
+            <div style={{...styles.card, borderLeft: '4px solid #3182ce'}}>
+              <div style={{...styles.cardHeader, background: '#ebf8ff'}}>
+                <span style={{...styles.cardTitle, color: '#2b6cb0'}}>
+                  📁 Past Medical Records (Past 15 Years)
+                </span>
+                <span style={{fontSize: '12px', color: '#4a5568'}}>
+                  Vendor Dataset: syntheaPatientA
+                </span>
+              </div>
+              <div style={styles.cardContent}>
+                <div style={{display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap'}}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Filter by Year</label>
+                    <select 
+                      style={{...styles.input, minWidth: '150px'}}
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                    >
+                      {years.map(year => (
+                        <option key={year} value={year}>{year === 'all' ? 'All Years (2010-2024)' : year}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Filter by Record Type</label>
+                    <select 
+                      style={{...styles.input, minWidth: '180px'}}
+                      value={selectedDocType}
+                      onChange={(e) => setSelectedDocType(e.target.value)}
+                    >
+                      {docTypes.map(type => (
+                        <option key={type} value={type}>{type === 'all' ? 'All Record Types' : type}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{marginLeft: 'auto', display: 'flex', gap: '8px'}}>
+                    <button style={{...styles.button, ...styles.buttonSecondary, padding: '8px 14px'}}>
+                      🔍 Search Records
+                    </button>
+                    <button style={{...styles.button, ...styles.buttonSecondary, padding: '8px 14px'}}>
+                      📥 Request External Records
+                    </button>
+                  </div>
+                </div>
+                <div style={{marginTop: '12px', padding: '10px 14px', background: '#f7fafc', borderRadius: '6px', fontSize: '13px', color: '#4a5568'}}>
+                  Showing <strong>{filteredRecords.length}</strong> records 
+                  {selectedYear !== 'all' && <span> from <strong>{selectedYear}</strong></span>}
+                  {selectedDocType !== 'all' && <span> of type <strong>{selectedDocType}</strong></span>}
+                </div>
+              </div>
+            </div>
+
+            {/* Records List */}
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardTitle}>Medical Record History</span>
+                <div style={{display: 'flex', gap: '8px'}}>
+                  <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                    Expand All
+                  </button>
+                  <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                    Print Summary
+                  </button>
+                </div>
+              </div>
+              <div style={styles.cardContent}>
+                {filteredRecords.length === 0 ? (
+                  <div style={{textAlign: 'center', padding: '40px', color: '#718096'}}>
+                    <div style={{fontSize: '40px', marginBottom: '12px'}}>📋</div>
+                    <div>No records found for the selected filters.</div>
+                  </div>
+                ) : (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+                    {filteredRecords.map((record, idx) => {
+                      const typeColor = getRecordTypeColor(record.type);
+                      return (
+                        <div 
+                          key={idx}
+                          style={{
+                            border: `1px solid ${selectedRecord === idx ? '#3182ce' : '#e2e8f0'}`,
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            background: selectedRecord === idx ? '#f7fafc' : '#fff',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onClick={() => setSelectedRecord(selectedRecord === idx ? null : idx)}
+                        >
+                          <div style={{
+                            padding: '14px 16px',
+                            display: 'grid',
+                            gridTemplateColumns: '100px 140px 1fr 180px auto',
+                            alignItems: 'center',
+                            gap: '16px',
+                          }}>
+                            <div style={{fontSize: '13px', fontWeight: '600', color: '#1a365d'}}>{record.date}</div>
+                            <div style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              background: typeColor.bg,
+                              border: `1px solid ${typeColor.border}`,
+                              color: typeColor.text,
+                              textAlign: 'center',
+                            }}>
+                              {record.type}
+                            </div>
+                            <div style={{fontSize: '13px', color: '#4a5568'}}>{record.provider}</div>
+                            <div style={{fontSize: '12px', color: '#718096'}}>{record.facility}</div>
+                            <div style={{fontSize: '16px', color: '#a0aec0'}}>{selectedRecord === idx ? '▼' : '▶'}</div>
+                          </div>
+                          
+                          {selectedRecord === idx && (
+                            <div style={{
+                              padding: '16px',
+                              borderTop: '1px solid #e2e8f0',
+                              background: '#f7fafc',
+                            }}>
+                              <div style={{marginBottom: '12px'}}>
+                                <div style={{...styles.label, marginBottom: '6px'}}>Summary</div>
+                                <div style={{fontSize: '14px', color: '#2d3748', lineHeight: '1.6'}}>{record.summary}</div>
+                              </div>
+                              <div>
+                                <div style={{...styles.label, marginBottom: '8px'}}>Associated Documents</div>
+                                <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+                                  {record.documents.map((doc, docIdx) => (
+                                    <button 
+                                      key={docIdx}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '8px 12px',
+                                        background: '#fff',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        color: '#2b6cb0',
+                                        cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                      }}
+                                    >
+                                      📄 {doc}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Summary Card */}
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardTitle}>📊 Record Summary</span>
+              </div>
+              <div style={styles.cardContent}>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px'}}>
+                  <div style={{padding: '16px', background: '#f7fafc', borderRadius: '8px', textAlign: 'center'}}>
+                    <div style={{fontSize: '28px', fontWeight: '700', color: '#1a365d'}}>
+                      {mockMedicalRecords.flatMap(y => y.records).length}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#718096', marginTop: '4px'}}>Total Records</div>
+                  </div>
+                  <div style={{padding: '16px', background: '#fed7d7', borderRadius: '8px', textAlign: 'center'}}>
+                    <div style={{fontSize: '28px', fontWeight: '700', color: '#c53030'}}>
+                      {mockMedicalRecords.flatMap(y => y.records).filter(r => r.type === 'ER Visit').length}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#c53030', marginTop: '4px'}}>ER Visits</div>
+                  </div>
+                  <div style={{padding: '16px', background: '#feebc8', borderRadius: '8px', textAlign: 'center'}}>
+                    <div style={{fontSize: '28px', fontWeight: '700', color: '#c05621'}}>
+                      {mockMedicalRecords.flatMap(y => y.records).filter(r => r.type.includes('Cardiology') || r.type.includes('Stress')).length}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#c05621', marginTop: '4px'}}>Cardiac Records</div>
+                  </div>
+                  <div style={{padding: '16px', background: '#c6f6d5', borderRadius: '8px', textAlign: 'center'}}>
+                    <div style={{fontSize: '28px', fontWeight: '700', color: '#276749'}}>
+                      {mockMedicalRecords.flatMap(y => y.records).filter(r => r.type === 'Surgical').length}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#276749', marginTop: '4px'}}>Surgical Procedures</div>
+                  </div>
+                </div>
+                <div style={{marginTop: '16px', padding: '12px 14px', background: '#fffbeb', border: '1px solid #f6e05e', borderRadius: '6px'}}>
+                  <div style={{fontSize: '12px', fontWeight: '600', color: '#744210', marginBottom: '6px'}}>⚠️ Key Historical Findings</div>
+                  <ul style={{fontSize: '13px', color: '#744210', margin: 0, paddingLeft: '20px', lineHeight: '1.8'}}>
+                    <li>Cardiac workup 2023: Echo with preserved EF, negative stress test</li>
+                    <li>Type 2 Diabetes diagnosed 2022, currently on metformin</li>
+                    <li>Hypertension diagnosed 2021, on lisinopril</li>
+                    <li>Former smoker (quit 2015 after 20 pack-years)</li>
+                    <li>Right knee arthroscopy 2012 for meniscus repair</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      };
+
+      const renderAssessmentTab = () => (
+        <>
+          <div style={styles.mdmSection}>
+            <div style={styles.mdmTitle}>
+              📊 Medical Decision Making (MDM) Calculator - E/M Level Determination
+            </div>
+            <div style={styles.mdmGrid}>
+              <div style={styles.mdmBox}>
+                <div style={styles.mdmBoxTitle}>Number & Complexity of Problems</div>
+                <select style={{...styles.input, width: '100%'}} value={mdmLevel.data} onChange={(e) => setMdmLevel({...mdmLevel, data: e.target.value})}>
+                  <option value="minimal">Minimal - 1 self-limited problem</option>
+                  <option value="low">Low - 2+ self-limited OR 1 stable chronic</option>
+                  <option value="moderate">Moderate - 1+ chronic w/ exacerbation OR undiagnosed new problem w/ uncertain prognosis</option>
+                  <option value="high">High - 1+ chronic w/ severe exacerbation OR acute illness posing threat to life/function</option>
+                </select>
+              </div>
+              <div style={styles.mdmBox}>
+                <div style={styles.mdmBoxTitle}>Amount & Complexity of Data</div>
+                <select style={{...styles.input, width: '100%'}} value={mdmLevel.complexity} onChange={(e) => setMdmLevel({...mdmLevel, complexity: e.target.value})}>
+                  <option value="minimal">Minimal or none</option>
+                  <option value="limited">Limited - Review prior external notes OR order unique tests</option>
+                  <option value="moderate">Moderate - Independent interpretation OR discussion with external physician</option>
+                  <option value="extensive">Extensive - Independent interpretation + discussion with external physician</option>
+                </select>
+              </div>
+              <div style={styles.mdmBox}>
+                <div style={styles.mdmBoxTitle}>Risk of Complications/Morbidity/Mortality</div>
+                <select style={{...styles.input, width: '100%'}} value={mdmLevel.risk} onChange={(e) => setMdmLevel({...mdmLevel, risk: e.target.value})}>
+                  <option value="minimal">Minimal risk</option>
+                  <option value="low">Low - OTC drugs, minor surgery w/o risk factors</option>
+                  <option value="moderate">Moderate - Rx drug management, minor surgery w/ risk factors, IV fluids</option>
+                  <option value="high">High - Drug requiring intensive monitoring, decision for emergency surgery, decision for DNR</option>
+                </select>
+              </div>
+            </div>
+            <div style={{marginTop: '16px', padding: '14px 18px', background: '#fff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <div>
+                <span style={{fontWeight: '600', color: '#744210'}}>Calculated MDM Level: </span>
+                <span style={{fontWeight: '700', color: '#1a365d'}}>Moderate</span>
+                <span style={{color: '#718096', marginLeft: '8px', fontSize: '13px'}}>(2 of 3 elements meet moderate threshold)</span>
+              </div>
+              <div style={{textAlign: 'right'}}>
+                <div style={{fontSize: '18px', fontWeight: '700', color: '#2b6cb0'}}>99284</div>
+                <div style={{fontSize: '12px', color: '#718096'}}>Level 4 ED Visit</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Assessment</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Clinical Assessment / Primary Diagnosis</label>
+                <textarea 
+                  style={{...styles.textareaLarge, marginTop: '6px'}}
+                  defaultValue={`56 year old male with cardiovascular risk factors (hypertension, type 2 diabetes mellitus, hyperlipidemia, former tobacco use, strong family history of premature coronary artery disease) presenting with acute onset substernal chest pain with typical anginal features concerning for acute coronary syndrome.
+
+The presentation is highly concerning given:
+- Classic description of pressure-like chest pain with radiation to left arm and jaw
+- Associated diaphoresis
+- Onset at rest (more concerning than exertional)
+- Multiple cardiac risk factors
+- Strong family history of premature CAD
+
+Initial troponin is negative, however serial troponins are required to rule out NSTEMI given that troponin may not be elevated within the first several hours of symptom onset. ECG shows no acute ST changes. Patient responded partially to nitroglycerin in the field which supports a possible cardiac etiology.
+
+Risk stratification: This patient would be considered intermediate-high risk based on age, multiple risk factors, and clinical presentation. HEART score calculation: History (2) + ECG (0) + Age (2) + Risk factors (2) + Troponin (0) = 6 (moderate-high risk for MACE).`}
+                />
+              </div>
+              
+              <div style={{...styles.formGroup, marginTop: '20px'}}>
+                <label style={styles.label}>Differential Diagnosis</label>
+                <textarea 
+                  style={{...styles.textarea, marginTop: '6px'}}
+                  defaultValue={`1. Unstable Angina / NSTEMI - Most likely given presentation and risk factors
+2. Stable angina with prolonged episode - Less likely given rest onset
+3. Aortic dissection - Less likely given no tearing quality, no back pain, BP equal bilaterally
+4. Pulmonary embolism - Less likely given no recent immobilization, no pleuritic component
+5. Pericarditis - Less likely given no positional component, no friction rub
+6. GERD/Esophageal spasm - Possible but would not explain diaphoresis
+7. Musculoskeletal - Less likely given not reproducible with palpation
+8. Anxiety/Panic - Less likely as primary diagnosis given objective diaphoresis and risk factors`}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Plan</span>
+            </div>
+            <div style={styles.cardContent}>
+              <textarea 
+                style={{...styles.textareaLarge}}
+                defaultValue={`1. CHEST PAIN / POSSIBLE ACUTE CORONARY SYNDROME:
+   - Continue continuous cardiac monitoring and pulse oximetry
+   - Serial troponins every 3 hours x 3 to rule out NSTEMI
+   - Repeat ECG with any change in symptoms or in morning
+   - Aspirin 325mg given (patient took additional 162mg at home)
+   - Continue nitroglycerin PRN for recurrent chest pain
+   - Hold beta-blocker in ED given borderline heart rate
+   - If troponin positive: start heparin drip, urgent cardiology consult for possible cath
+   - NPO status maintained in case of need for cardiac catheterization
+
+2. HYPERTENSION:
+   - Blood pressure elevated at 148/92 on arrival, likely stress/pain-related
+   - Continue home lisinopril
+   - Will monitor and treat if persistently elevated or symptomatic
+
+3. TYPE 2 DIABETES MELLITUS:
+   - Blood glucose mildly elevated at 142 mg/dL (likely stress response)
+   - Hold metformin given possible cardiac catheterization with contrast
+   - Blood glucose monitoring q6h
+   - Sliding scale insulin if needed
+
+4. HYPERLIPIDEMIA:
+   - Continue home atorvastatin
+
+5. DVT PROPHYLAXIS:
+   - Heparin 5000 units SQ q8h if admitted and not on therapeutic anticoagulation
+
+6. DISPOSITION:
+   - Admit to telemetry unit for serial troponins and continuous monitoring
+   - Cardiology consult in AM for further risk stratification
+   - If troponins remain negative x 3 → consider stress testing prior to discharge
+   - If troponin positive or clinical deterioration → urgent cardiology evaluation for catheterization
+
+7. PATIENT/FAMILY EDUCATION:
+   - Discussed presentation, differential diagnosis, and workup plan with patient and wife at bedside
+   - Explained purpose of serial troponins and monitoring
+   - Discussed potential need for cardiac catheterization if troponins positive
+   - Patient and family verbalize understanding of plan and agree with admission
+   - Contact information provided for any questions
+
+8. CODE STATUS:
+   - Full code confirmed with patient`}
+              />
+            </div>
+          </div>
+        </>
+      );
+
+      const renderCodingTab = () => (
+        <>
+          {/* E/M Level Selection */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>E/M Service Level</span>
+              <span style={{fontSize: '12px', color: '#276749', fontWeight: '600', background: '#c6f6d5', padding: '4px 10px', borderRadius: '12px'}}>
+                MDM Supports: 99284
+              </span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={styles.codeList}>
+                {emCodes.map((code, idx) => (
+                  <div 
+                    key={idx} 
+                    style={{
+                      ...styles.codeItem,
+                      background: selectedEM?.code === code.code ? '#ebf8ff' : 'transparent'
+                    }}
+                    onClick={() => setSelectedEM(code)}
+                  >
+                    <input 
+                      type="radio" 
+                      name="emCode"
+                      checked={selectedEM?.code === code.code}
+                      readOnly
+                      style={{width: '16px', height: '16px', accentColor: '#3182ce'}}
+                    />
+                    <span style={styles.codeItemCode}>{code.code}</span>
+                    <span style={styles.codeItemDesc}>{code.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ICD-10 Diagnosis Codes */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>ICD-10-CM Diagnosis Codes</span>
+              <span style={{fontSize: '11px', color: '#718096'}}>Select primary diagnosis first</span>
+            </div>
+            <div style={styles.cardContent}>
+              <input style={{...styles.input, width: '100%', marginBottom: '12px'}} placeholder="Search ICD-10 codes (e.g., 'chest pain', 'R07', 'angina')..." />
+              <div style={styles.codeList}>
+                {icd10Codes.map((code, idx) => (
+                  <div 
+                    key={idx} 
+                    style={{
+                      ...styles.codeItem,
+                      background: selectedICD.some(c => c.code === code.code) ? '#ebf8ff' : 'transparent'
+                    }}
+                    onClick={() => {
+                      if (selectedICD.some(c => c.code === code.code)) {
+                        setSelectedICD(selectedICD.filter(c => c.code !== code.code));
+                      } else {
+                        setSelectedICD([...selectedICD, code]);
+                      }
+                    }}
+                  >
+                    <input 
+                      type="checkbox" 
+                      style={styles.checkbox}
+                      checked={selectedICD.some(c => c.code === code.code)}
+                      readOnly
+                    />
+                    <span style={styles.codeItemCode}>{code.code}</span>
+                    <span style={styles.codeItemDesc}>{code.desc}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={styles.selectedCodes}>
+                <span style={{fontSize: '12px', fontWeight: '600', color: '#718096'}}>Selected ({selectedICD.length}):</span>
+                {selectedICD.map((code, idx) => (
+                  <span key={idx} style={{...styles.selectedCodeBadge, background: idx === 0 ? '#c6f6d5' : '#ebf8ff', borderColor: idx === 0 ? '#68d391' : '#90cdf4'}}>
+                    {idx === 0 && <span style={{fontSize: '10px', marginRight: '4px'}}>PRIMARY</span>}
+                    {code.code}
+                    <span style={{cursor: 'pointer'}} onClick={(e) => {e.stopPropagation(); setSelectedICD(selectedICD.filter(c => c.code !== code.code))}}>×</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* CPT Procedure Codes with Modifiers */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>CPT Procedure Codes</span>
+              <button style={{...styles.button, ...styles.buttonSecondary, padding: '6px 12px', fontSize: '11px'}}>
+                + Add Procedure Code
+              </button>
+            </div>
+            <div style={styles.cardContent}>
+              <input style={{...styles.input, width: '100%', marginBottom: '12px'}} placeholder="Search CPT codes (e.g., 'laceration', '12001', 'ECG')..." />
+              <div style={{...styles.codeList, maxHeight: '300px'}}>
+                {procedureCodes.map((code, idx) => (
+                  <div 
+                    key={idx} 
+                    style={{
+                      ...styles.codeItem,
+                      background: selectedProcedureCodes.some(c => c.code === code.code) ? '#ebf8ff' : 'transparent'
+                    }}
+                    onClick={() => {
+                      if (selectedProcedureCodes.some(c => c.code === code.code)) {
+                        setSelectedProcedureCodes(selectedProcedureCodes.filter(c => c.code !== code.code));
+                      } else {
+                        setSelectedProcedureCodes([...selectedProcedureCodes, {...code, modifier: ''}]);
+                      }
+                    }}
+                  >
+                    <input 
+                      type="checkbox" 
+                      style={styles.checkbox}
+                      checked={selectedProcedureCodes.some(c => c.code === code.code)}
+                      readOnly
+                    />
+                    <span style={styles.codeItemCode}>{code.code}</span>
+                    <span style={styles.codeItemDesc}>{code.desc}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Selected Procedure Codes with Modifier Selection */}
+              {selectedProcedureCodes.length > 0 && (
+                <div style={{marginTop: '16px', padding: '16px', background: '#f7fafc', borderRadius: '8px'}}>
+                  <div style={{...styles.label, marginBottom: '12px'}}>Selected Procedures with Modifiers</div>
+                  {selectedProcedureCodes.map((code, idx) => (
+                    <div key={idx} style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px', padding: '10px', background: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0'}}>
+                      <span style={{...styles.codeItemCode, minWidth: '60px'}}>{code.code}</span>
+                      <span style={{flex: 1, fontSize: '13px', color: '#4a5568'}}>{code.desc}</span>
+                      <select 
+                        style={{...styles.input, width: '200px', padding: '6px 10px'}}
+                        value={code.modifier}
+                        onChange={(e) => {
+                          const updated = [...selectedProcedureCodes];
+                          updated[idx].modifier = e.target.value;
+                          setSelectedProcedureCodes(updated);
+                        }}
+                      >
+                        <option value="">No Modifier</option>
+                        {modifiers.map(mod => (
+                          <option key={mod.code} value={mod.code}>{mod.code} - {mod.desc}</option>
+                        ))}
+                      </select>
+                      <button 
+                        style={{background: 'none', border: 'none', cursor: 'pointer', color: '#c53030', fontSize: '18px'}}
+                        onClick={() => setSelectedProcedureCodes(selectedProcedureCodes.filter((_, i) => i !== idx))}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Modifier Reference */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Common Modifier Reference</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px'}}>
+                {modifiers.slice(0, 10).map(mod => (
+                  <div key={mod.code} style={{fontSize: '12px', padding: '6px 10px', background: '#f7fafc', borderRadius: '4px'}}>
+                    <span style={{fontWeight: '600', color: '#2b6cb0'}}>{mod.code}</span>
+                    <span style={{color: '#4a5568', marginLeft: '8px'}}>{mod.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Coding Summary */}
+          <div style={{...styles.card, borderLeft: '4px solid #38a169'}}>
+            <div style={{...styles.cardHeader, background: '#f0fff4'}}>
+              <span style={{...styles.cardTitle, color: '#276749'}}>📋 Coding Summary / Charge Capture</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '24px'}}>
+                <div>
+                  <div style={styles.label}>E/M Service</div>
+                  <div style={{fontSize: '20px', fontWeight: '700', color: '#1a365d', marginTop: '4px'}}>
+                    {selectedEM?.code || '--'}
+                  </div>
+                  <div style={{fontSize: '12px', color: '#718096', marginTop: '4px'}}>
+                    {selectedEM?.desc || 'Not selected'}
+                  </div>
+                </div>
+                <div>
+                  <div style={styles.label}>Primary Diagnosis</div>
+                  <div style={{fontSize: '16px', fontWeight: '600', color: '#1a365d', marginTop: '4px'}}>
+                    {selectedICD[0]?.code || '--'}
+                  </div>
+                  <div style={{fontSize: '12px', color: '#718096', marginTop: '4px'}}>
+                    {selectedICD[0]?.desc || 'Not selected'}
+                  </div>
+                </div>
+                <div>
+                  <div style={styles.label}>Additional Diagnoses</div>
+                  <div style={{fontSize: '13px', color: '#4a5568', marginTop: '4px'}}>
+                    {selectedICD.slice(1).map(c => c.code).join(', ') || 'None'}
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e2e8f0'}}>
+                <div style={styles.label}>Procedures</div>
+                <div style={{marginTop: '8px'}}>
+                  {selectedProcedureCodes.length > 0 ? selectedProcedureCodes.map((code, idx) => (
+                    <div key={idx} style={{fontSize: '13px', color: '#4a5568', marginBottom: '4px'}}>
+                      <span style={{fontWeight: '600', color: '#2b6cb0'}}>{code.code}{code.modifier}</span>
+                      <span style={{marginLeft: '8px'}}>{code.desc}</span>
+                      {code.modifier && <span style={{marginLeft: '8px', color: '#718096'}}>({modifiers.find(m => m.code === code.modifier)?.desc})</span>}
+                    </div>
+                  )) : <span style={{color: '#a0aec0'}}>No procedures coded</span>}
+                </div>
+              </div>
+
+              <div style={{marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px'}}>
+                <button style={{...styles.button, ...styles.buttonSecondary}}>Save Draft</button>
+                <button style={{...styles.button, ...styles.buttonSuccess}}>Submit for Billing</button>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+
+      const renderDispoTab = () => (
+        <>
+          {/* Disposition Decision */}
+          <div style={styles.card}>
+            <div style={styles.cardHeader}>
+              <span style={styles.cardTitle}>Disposition Decision</span>
+            </div>
+            <div style={styles.cardContent}>
+              <div style={styles.dispoSection}>
+                <div 
+                  style={{
+                    ...styles.dispoOption,
+                    ...(disposition === 'admit' ? styles.dispoOptionActive : {})
+                  }}
+                  onClick={() => setDisposition('admit')}
+                >
+                  <div style={styles.dispoTitle}>🏥 Admit to Hospital</div>
+                  <div style={styles.dispoDesc}>Patient requires inpatient admission for further workup, monitoring, or treatment</div>
+                  {disposition === 'admit' && (
+                    <div style={{marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px'}}>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>Admit To</label>
+                        <select style={styles.input}>
+                          <option>Telemetry / Cardiac Monitoring</option>
+                          <option>Medical/Surgical Floor</option>
+                          <option>ICU / Critical Care</option>
+                          <option>Observation (23-hour)</option>
+                          <option>Stepdown Unit</option>
+                        </select>
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>Admitting Service</label>
+                        <select style={styles.input}>
+                          <option>Cardiology</option>
+                          <option>Internal Medicine</option>
+                          <option>Hospitalist</option>
+                          <option>Surgery</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
+                      <div style={styles.formGroup}>
+                        <label style={styles.label}>Admitting Physician</label>
+                        <input style={styles.input} placeholder="Attending name" defaultValue="Dr. Patel (Cardiology)" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div 
+                  style={{
+                    ...styles.dispoOption,
+                    ...(disposition === 'discharge' ? styles.dispoOptionActive : {})
+                  }}
+                  onClick={() => setDisposition('discharge')}
+                >
+                  <div style={styles.dispoTitle}>🏠 Discharge Home</div>
+                  <div style={styles.dispoDesc}>Patient is stable for discharge with appropriate follow-up care</div>
+                </div>
+              </div>
+              <div style={{display: 'flex', gap: '12px', marginTop: '16px'}}>
+                <div 
+                  style={{...styles.dispoOption, flex: 1, ...(disposition === 'transfer' ? styles.dispoOptionActive : {})}}
+                  onClick={() => setDisposition('transfer')}
+                >
+                  <div style={styles.dispoTitle}>🚑 Transfer</div>
+                  <div style={styles.dispoDesc}>Transfer to another facility</div>
+                </div>
+                <div 
+                  style={{...styles.dispoOption, flex: 1, ...(disposition === 'ama' ? styles.dispoOptionActive : {})}}
+                  onClick={() => setDisposition('ama')}
+                >
+                  <div style={styles.dispoTitle}>⚠️ AMA / LWBS</div>
+                  <div style={styles.dispoDesc}>Against medical advice or left</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Discharge Instructions - Highlighted */}
+          {disposition === 'discharge' && (
+            <>
+              <div style={styles.highlightCard}>
+                <div style={styles.highlightHeader}>
+                  <span style={styles.highlightTitle}>
+                    <span style={{fontSize: '24px'}}>📄</span>
+                    Patient Discharge Instructions
+                  </span>
+                  <div style={{display: 'flex', gap: '8px'}}>
+                    <button style={{...styles.button, background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '6px 14px', fontSize: '12px'}}>
+                      Preview
+                    </button>
+                    <button style={{...styles.button, background: '#fff', color: '#2b6cb0', padding: '6px 14px', fontSize: '12px'}}>
+                      Print
+                    </button>
+                  </div>
+                </div>
+                <div style={styles.highlightContent}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Diagnosis (Patient-Friendly Language)</label>
+                    <textarea 
+                      style={{...styles.textarea, marginTop: '6px'}}
+                      defaultValue="Chest Pain - We evaluated you for chest pain and performed tests including blood work and an EKG to check your heart. While we did not find evidence of a heart attack, chest pain can have many causes and requires close follow-up with your regular doctor and a heart specialist."
+                    />
+                  </div>
+                  
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px'}}>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Activity Restrictions</label>
+                      <textarea 
+                        style={{...styles.textareaSmall, marginTop: '6px'}}
+                        defaultValue="• Avoid strenuous physical activity for 1 week&#10;• No heavy lifting (>10 lbs) for 48 hours&#10;• Rest when you feel tired&#10;• OK to return to light daily activities"
+                      />
+                    </div>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Diet Instructions</label>
+                      <textarea 
+                        style={{...styles.textareaSmall, marginTop: '6px'}}
+                        defaultValue="• Follow a heart-healthy diet&#10;• Limit sodium (salt) intake to <2000mg/day&#10;• Avoid fatty and fried foods&#10;• Increase fruits, vegetables, whole grains&#10;• Limit alcohol consumption"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Medication Instructions */}
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <span style={styles.cardTitle}>💊 Discharge Medications</span>
+                </div>
+                <div style={styles.cardContent}>
+                  <table style={styles.labTable}>
+                    <thead>
+                      <tr>
+                        <th style={styles.labHeader}>Medication</th>
+                        <th style={styles.labHeader}>Instructions</th>
+                        <th style={styles.labHeader}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={styles.labCell}><strong>Aspirin 81mg</strong></td>
+                        <td style={styles.labCell}>Take 1 tablet by mouth daily with food</td>
+                        <td style={styles.labCell}><span style={{color: '#276749', fontWeight: '500'}}>Continue</span></td>
+                      </tr>
+                      <tr>
+                        <td style={styles.labCell}><strong>Lisinopril 10mg</strong></td>
+                        <td style={styles.labCell}>Take 1 tablet by mouth daily</td>
+                        <td style={styles.labCell}><span style={{color: '#276749', fontWeight: '500'}}>Continue</span></td>
+                      </tr>
+                      <tr>
+                        <td style={styles.labCell}><strong>Metformin 500mg</strong></td>
+                        <td style={styles.labCell}>Take 1 tablet by mouth twice daily with meals</td>
+                        <td style={styles.labCell}><span style={{color: '#276749', fontWeight: '500'}}>Continue</span></td>
+                      </tr>
+                      <tr>
+                        <td style={styles.labCell}><strong>Atorvastatin 20mg</strong></td>
+                        <td style={styles.labCell}>Take 1 tablet by mouth at bedtime</td>
+                        <td style={styles.labCell}><span style={{color: '#276749', fontWeight: '500'}}>Continue</span></td>
+                      </tr>
+                      <tr style={{background: '#fffbeb'}}>
+                        <td style={styles.labCell}><strong>Nitroglycerin 0.4mg SL</strong></td>
+                        <td style={styles.labCell}>Place 1 tablet under tongue for chest pain. May repeat every 5 min x 3. If pain persists after 3 tablets, call 911.</td>
+                        <td style={styles.labCell}><span style={{color: '#c05621', fontWeight: '500'}}>NEW</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Return Precautions - Highlighted */}
+              <div style={{...styles.highlightCard, background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)', border: '2px solid #fc8181'}}>
+                <div style={{...styles.highlightHeader, background: 'linear-gradient(135deg, #c53030 0%, #9b2c2c 100%)'}}>
+                  <span style={styles.highlightTitle}>
+                    <span style={{fontSize: '24px'}}>🚨</span>
+                    RETURN TO EMERGENCY DEPARTMENT IMMEDIATELY IF:
+                  </span>
+                </div>
+                <div style={styles.highlightContent}>
+                  <textarea 
+                    style={{...styles.textareaLarge, background: 'transparent', border: 'none', fontSize: '15px', lineHeight: '2'}}
+                    defaultValue={`• Chest pain returns or worsens
+• Chest pain that is not relieved by nitroglycerin after 3 doses
+• Shortness of breath or difficulty breathing
+• Pain spreading to your arm, jaw, neck, or back
+• New sweating, nausea, or vomiting
+• Dizziness, lightheadedness, or fainting
+• Palpitations or feeling like your heart is racing or skipping beats
+• Any other symptoms that concern you
+
+If you experience any of these symptoms, CALL 911 immediately. Do NOT drive yourself to the hospital.`}
+                  />
+                </div>
+              </div>
+
+              {/* Follow-up Appointments */}
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <span style={styles.cardTitle}>📅 Follow-Up Appointments</span>
+                </div>
+                <div style={styles.cardContent}>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px'}}>
+                    <div style={{padding: '16px', background: '#f7fafc', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                      <div style={{fontWeight: '600', color: '#1a365d', marginBottom: '8px'}}>Primary Care Physician</div>
+                      <input style={{...styles.input, width: '100%', marginBottom: '8px'}} defaultValue="Dr. Sarah Mitchell" />
+                      <input style={{...styles.input, width: '100%', marginBottom: '8px'}} defaultValue="Within 2-3 days" />
+                      <input style={{...styles.input, width: '100%'}} defaultValue="(555) 123-4567" />
+                    </div>
+                    <div style={{padding: '16px', background: '#ebf8ff', borderRadius: '8px', border: '1px solid #90cdf4'}}>
+                      <div style={{fontWeight: '600', color: '#2b6cb0', marginBottom: '8px'}}>Cardiologist</div>
+                      <input style={{...styles.input, width: '100%', marginBottom: '8px'}} placeholder="Cardiologist name" />
+                      <input style={{...styles.input, width: '100%', marginBottom: '8px'}} defaultValue="Within 1 week" />
+                      <input style={{...styles.input, width: '100%'}} placeholder="Phone number" />
+                    </div>
+                    <div style={{padding: '16px', background: '#f7fafc', borderRadius: '8px', border: '1px solid #e2e8f0'}}>
+                      <div style={{fontWeight: '600', color: '#1a365d', marginBottom: '8px'}}>Other / Tests</div>
+                      <input style={{...styles.input, width: '100%', marginBottom: '8px'}} placeholder="Stress test, etc." />
+                      <input style={{...styles.input, width: '100%', marginBottom: '8px'}} placeholder="Timeframe" />
+                      <input style={{...styles.input, width: '100%'}} placeholder="Phone number" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Patient Education Checklist */}
+              <div style={styles.card}>
+                <div style={styles.cardHeader}>
+                  <span style={styles.cardTitle}>✅ Patient Education Checklist</span>
+                </div>
+                <div style={styles.cardContent}>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+                    {[
+                      'Diagnosis explained in patient-friendly terms',
+                      'Discharge instructions reviewed with patient',
+                      'Medication list reviewed and reconciled',
+                      'New medications explained with indications and side effects',
+                      'Return precautions / warning signs explained',
+                      'Activity restrictions discussed',
+                      'Diet instructions provided',
+                      'Follow-up appointments scheduled or instructions given',
+                      'Patient given opportunity to ask questions',
+                      'Patient verbalized understanding of instructions',
+                      'Written discharge instructions provided',
+                      'Prescription(s) provided or sent to pharmacy'
+                    ].map((item, idx) => (
+                      <label key={idx} style={styles.checkboxItem}>
+                        <input type="checkbox" style={styles.checkbox} defaultChecked={idx < 10} />
+                        {item}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{marginTop: '16px'}}>
+                    <label style={styles.label}>Additional Patient Education Notes</label>
+                    <textarea 
+                      style={{...styles.textareaSmall, marginTop: '6px'}}
+                      placeholder="Document any additional education provided, patient questions, or barriers to understanding..."
+                      defaultValue="Patient and wife at bedside. Both verbalized understanding of discharge instructions. Wife will help monitor for warning signs. Patient understands importance of cardiology follow-up."
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Admission Orders (if admit selected) */}
+          {disposition === 'admit' && (
+            <div style={styles.card}>
+              <div style={styles.cardHeader}>
+                <span style={styles.cardTitle}>📋 Admission Orders Summary</span>
+              </div>
+              <div style={styles.cardContent}>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px'}}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Admit To</label>
+                    <input style={styles.input} defaultValue="Telemetry Unit" />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Admitting Diagnosis</label>
+                    <input style={styles.input} defaultValue="Chest pain r/o ACS" />
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>Condition</label>
+                    <select style={styles.input}>
+                      <option>Stable</option>
+                      <option>Fair</option>
+                      <option selected>Guarded</option>
+                      <option>Serious</option>
+                      <option>Critical</option>
+                    </select>
+                  </div>
+                </div>
+                <textarea 
+                  style={{...styles.textareaLarge}}
+                  defaultValue={`ADMISSION ORDERS:
+
+1. Admit to: Telemetry / Cardiac Monitoring Unit
+2. Admitting Physician: Dr. Patel (Cardiology)
+3. Diagnosis: Acute chest pain, rule out acute coronary syndrome
+4. Condition: Guarded
+5. Code Status: Full Code
+
+ACTIVITY:
+• Bedrest with bathroom privileges
+• Fall precautions
+
+NURSING:
+• Continuous cardiac monitoring
+• Continuous pulse oximetry
+• Vital signs q4h, q1h if unstable
+• Strict intake/output
+• Daily weights
+• Call MD if: HR <50 or >120, SBP <90 or >180, new chest pain, SpO2 <92%, any acute change
+
+DIET:
+• Cardiac / Low sodium diet
+• NPO after midnight (for possible cath)
+
+IV FLUIDS:
+• Normal Saline at 75 mL/hr
+
+MEDICATIONS:
+• Continue home medications: Lisinopril, Atorvastatin
+• HOLD Metformin (possible contrast exposure)
+• Aspirin 325mg PO daily
+• Heparin 5000 units SQ q8h (DVT prophylaxis)
+• Morphine 2mg IV PRN pain
+• Ondansetron 4mg IV PRN nausea
+• Nitroglycerin 0.4mg SL PRN chest pain
+
+LABS:
+• Serial Troponins q3h x 3
+• AM labs: CBC, BMP, Magnesium, Lipid panel
+• HbA1c if not done recently
+
+IMAGING/STUDIES:
+• Repeat ECG in AM or with any symptoms
+• Echocardiogram in AM
+
+CONSULTS:
+• Cardiology - ACS protocol, ? cath if troponin positive
+
+DVT PROPHYLAXIS: Heparin SQ as above
+GI PROPHYLAXIS: Not indicated (no high risk factors)
+BLOOD GLUCOSE MONITORING: Q6H with sliding scale insulin PRN`}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Attestation */}
+          <div style={styles.attestBox}>
+            <div>
+              <div style={styles.attestText}>
+                I have personally evaluated this patient, reviewed all data, and agree with the documented assessment and plan. I have discussed the disposition and relevant instructions with the patient and/or family.
+              </div>
+              <div style={{fontSize: '12px', color: '#276749', marginTop: '6px'}}>
+                Dr. Alexander King, MD | {new Date().toLocaleString()} | Time in chart: 58 min
+              </div>
+            </div>
+            <button style={{...styles.button, ...styles.buttonSuccess, padding: '14px 28px', fontSize: '15px'}}>
+              Sign & Complete Chart
+            </button>
+          </div>
+        </>
+      );
+
+      const renderTabContent = () => {
+        switch(activeTab) {
+          case 'triage': return renderTriageTab();
+          case 'hpi': return renderHPITab();
+          case 'exam': return renderExamTab();
+          case 'orders': return renderOrdersTab();
+          case 'results': return renderResultsTab();
+          case 'procedures': return renderProceduresTab();
+          case 'records': return renderMedicalRecordsTab();
+          case 'assessment': return renderAssessmentTab();
+          case 'coding': return renderCodingTab();
+          case 'dispo': return renderDispoTab();
+          default: return renderTriageTab();
+        }
+      };
+
+      return (
+        <div style={styles.container}>
+          <header style={styles.header}>
+            <div style={styles.logo}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+              MedChart ER
+            </div>
+            <div style={styles.headerRight}>
+              <span>Dr. Alexander King, MD</span>
+              <span>|</span>
+              <span>Metro General Hospital ED</span>
+              <span>|</span>
+              <span>{new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            </div>
+          </header>
+
+          <div style={styles.patientBanner}>
+            <div style={styles.bannerSection}>
+              <div style={styles.patientName}>{mockPatient.name}</div>
+              <div style={{display: 'flex', gap: '16px', marginTop: '4px'}}>
+                <span style={styles.bannerValue}>{mockPatient.mrn}</span>
+                <span style={styles.bannerValue}>{mockPatient.dob} ({mockPatient.age})</span>
+              </div>
+            </div>
+            <div style={styles.bannerSection}>
+              <div style={styles.bannerLabel}>Allergies</div>
+              <div>
+                {mockPatient.allergies.map((a, i) => (
+                  <span key={i} style={styles.allergyBadge}>{a}</span>
+                ))}
+              </div>
+            </div>
+            <div style={styles.bannerSection}>
+              <div style={{display: 'flex', gap: '24px'}}>
+                <div>
+                  <div style={styles.bannerLabel}>Room</div>
+                  <div style={{...styles.bannerValue, fontSize: '16px', fontWeight: '700'}}>{mockPatient.roomBed}</div>
+                </div>
+                <div>
+                  <div style={styles.bannerLabel}>Arrival</div>
+                  <div style={styles.bannerValue}>{mockPatient.arrivalTime}</div>
+                </div>
+                <div>
+                  <div style={styles.bannerLabel}>Code Status</div>
+                  <div style={styles.bannerValue}>{mockPatient.codeStatus}</div>
+                </div>
+              </div>
+            </div>
+            <div style={{...styles.acuityBadge, ...getAcuityStyle(2), padding: '10px 20px', fontSize: '16px'}}>
+              ESI-2
+            </div>
+          </div>
+
+          <div style={styles.mainContent}>
+            <aside style={styles.sidebar}>
+              <div style={styles.sidebarHeader}>
+                <span>My Patients</span>
+                <span style={{background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px'}}>
+                  {mockPatientList.filter(p => p.provider === 'You').length}
+                </span>
+              </div>
+              {mockPatientList.map((patient, idx) => (
+                <div 
+                  key={idx} 
+                  style={{
+                    ...styles.patientCard,
+                    ...(idx === selectedPatient ? styles.patientCardActive : {})
+                  }}
+                  onClick={() => setSelectedPatient(idx)}
+                >
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
+                    <div style={styles.patientCardRoom}>{patient.room}</div>
+                    <span style={{
+                      ...styles.acuityBadge,
+                      ...getAcuityStyle(patient.acuity),
+                      padding: '2px 6px',
+                      fontSize: '10px'
+                    }}>
+                      ESI-{patient.acuity}
+                    </span>
+                  </div>
+                  <div style={styles.patientCardName}>{patient.name}</div>
+                  <div style={styles.patientCardChief}>{patient.chief}</div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <span style={{
+                      ...styles.statusBadge,
+                      ...getStatusStyle(patient.status)
+                    }}>
+                      {patient.status}
+                    </span>
+                    <span style={{fontSize: '10px', color: '#a0aec0'}}>{patient.time}</span>
+                  </div>
+                </div>
+              ))}
+            </aside>
+
+            <main style={styles.chartArea}>
+              <nav style={styles.tabBar}>
+                {tabs.map(tab => (
+                  <div 
+                    key={tab.id}
+                    style={{
+                      ...styles.tab,
+                      ...(activeTab === tab.id ? styles.tabActive : {})
+                    }}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </div>
+                ))}
+              </nav>
+
+              <div style={styles.chartContent}>
+                {renderTabContent()}
+              </div>
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<EREmrMockup />);
+  </script>
+</body>
+</html>
